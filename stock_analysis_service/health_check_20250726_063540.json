@@ -1,0 +1,89 @@
+{
+  "timestamp": "2025-07-26T06:35:40.873544",
+  "services": [
+    {
+      "name": "News Service",
+      "port": 8001,
+      "status": "timeout",
+      "response_time_ms": 30000.0,
+      "error_message": "응답 시간 초과 (30초)",
+      "response_data": null
+    },
+    {
+      "name": "Disclosure Service",
+      "port": 8002,
+      "status": "healthy",
+      "response_time_ms": 7.75,
+      "error_message": null,
+      "response_data": {
+        "status": "healthy",
+        "timestamp": "2025-07-26T06:34:55.609890"
+      }
+    },
+    {
+      "name": "Chart Service",
+      "port": 8003,
+      "status": "healthy",
+      "response_time_ms": 7.55,
+      "error_message": null,
+      "response_data": {
+        "status": "healthy",
+        "service": "Chart Service",
+        "timestamp": "2025-07-26T06:34:55.609664",
+        "message": "Chart Service API server is running"
+      }
+    },
+    {
+      "name": "Report Service",
+      "port": 8004,
+      "status": "healthy",
+      "response_time_ms": 7.35,
+      "error_message": null,
+      "response_data": {
+        "status": "healthy",
+        "timestamp": "2025-07-26T06:34:55.609394"
+      }
+    },
+    {
+      "name": "API Gateway",
+      "port": 8005,
+      "status": "healthy",
+      "response_time_ms": 8.42,
+      "error_message": null,
+      "response_data": {
+        "status": "healthy",
+        "timestamp": "2025-07-26T06:34:55.610468",
+        "gateway": "running",
+        "version": "2.0.0"
+      }
+    },
+    {
+      "name": "User Service",
+      "port": 8006,
+      "status": "healthy",
+      "response_time_ms": 7.47,
+      "error_message": null,
+      "response_data": {
+        "status": "healthy",
+        "service": "user_service"
+      }
+    },
+    {
+      "name": "Flow Analysis Service",
+      "port": 8010,
+      "status": "healthy",
+      "response_time_ms": 7.08,
+      "error_message": null,
+      "response_data": {
+        "status": "healthy",
+        "timestamp": "2025-07-26T06:34:55.609334"
+      }
+    }
+  ],
+  "summary": {
+    "total_services": 7,
+    "healthy_services": 6,
+    "unhealthy_services": 1,
+    "average_response_time_ms": 4292.231428571428
+  }
+}

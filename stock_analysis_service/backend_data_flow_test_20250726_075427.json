@@ -1,0 +1,270 @@
+{
+  "health_checks": {
+    "api_gateway": {
+      "status": "✅ HEALTHY",
+      "response_time": "N/Ams",
+      "data": {
+        "status": "healthy",
+        "timestamp": "2025-07-26T07:54:13.612546",
+        "gateway": "running",
+        "version": "2.0.0"
+      }
+    },
+    "user_service": {
+      "status": "✅ HEALTHY",
+      "response_time": "N/Ams",
+      "data": {
+        "status": "healthy",
+        "service": "user_service"
+      }
+    },
+    "news_service": {
+      "status": "✅ HEALTHY",
+      "response_time": "N/Ams",
+      "data": {
+        "status": "healthy",
+        "timestamp": "2025-07-26T07:54:13.616354"
+      }
+    },
+    "disclosure_service": {
+      "status": "✅ HEALTHY",
+      "response_time": "N/Ams",
+      "data": {
+        "status": "healthy",
+        "timestamp": "2025-07-26T07:54:13.618299"
+      }
+    },
+    "chart_service": {
+      "status": "✅ HEALTHY",
+      "response_time": "N/Ams",
+      "data": {
+        "status": "healthy",
+        "service": "Chart Service",
+        "timestamp": "2025-07-26T07:54:13.620453",
+        "message": "Chart Service API server is running"
+      }
+    },
+    "report_service": {
+      "status": "✅ HEALTHY",
+      "response_time": "N/Ams",
+      "data": {
+        "status": "healthy",
+        "timestamp": "2025-07-26T07:54:13.622210"
+      }
+    },
+    "flow_analysis_service": {
+      "status": "✅ HEALTHY",
+      "response_time": "N/Ams",
+      "data": {
+        "status": "healthy",
+        "timestamp": "2025-07-26T07:54:13.624417"
+      }
+    }
+  },
+  "user_config_tests": {},
+  "service_execution_tests": {},
+  "data_flow_tests": {
+    "user_test_user_1": {
+      "config_setup": {
+        "user_config": {
+          "status": "✅ SUCCESS",
+          "data": {
+            "success": true,
+            "message": "사용자 설정 업데이트 완료: test_user_1",
+            "updated_fields": [
+              "username",
+              "phone_number",
+              "news_similarity_threshold",
+              "news_impact_threshold"
+            ]
+          }
+        },
+        "user_stocks": {
+          "status": "❌ FAILED (500)",
+          "data": "{\"error\":{\"code\":500,\"message\":\"사용자 종목 설정 실패: 500: 사용자 종목 설정에 실패했습니다\",\"timestamp\":\"2025-07-26T07:54:13.724757\",\"path\":\"/api/user/stocks/test_user_1\"}}"
+        },
+        "user_model": {
+          "status": "❌ FAILED (500)",
+          "data": "{\"error\":{\"code\":500,\"message\":\"사용자 모델 설정 실패: 500: 사용자 모델 설정에 실패했습니다\",\"timestamp\":\"2025-07-26T07:54:13.739484\",\"path\":\"/api/user/model/test_user_1\"}}"
+        }
+      },
+      "service_executions": {
+        "news": {
+          "status": "✅ SUCCESS",
+          "response_time": "N/Ams",
+          "data": {
+            "data": {
+              "success": false,
+              "error": "invalid literal for int() with base 10: 'test_user_1'"
+            },
+            "service": "news",
+            "timestamp": "2025-07-26T07:54:15.746237",
+            "status_code": 200,
+            "response_time": 0.004117012023925781
+          }
+        },
+        "disclosure": {
+          "status": "✅ SUCCESS",
+          "response_time": "N/Ams",
+          "data": {
+            "data": {
+              "success": false,
+              "error": "invalid literal for int() with base 10: 'test_user_1'"
+            },
+            "service": "disclosure",
+            "timestamp": "2025-07-26T07:54:16.751074",
+            "status_code": 200,
+            "response_time": 0.001911163330078125
+          }
+        },
+        "chart": {
+          "status": "❌ FAILED (503)",
+          "error": "{\"error\":{\"code\":503,\"message\":\"Service chart unavailable\",\"timestamp\":\"2025-07-26T07:54:17.757835\",\"path\":\"/api/chart/execute\"}}",
+          "headers": {
+            "Date": "Fri, 25 Jul 2025 22:54:16 GMT",
+            "Server": "uvicorn",
+            "Content-Length": "129",
+            "Content-Type": "application/json",
+            "x-response-time": "0.004s",
+            "x-request-id": "req-1753484057753742"
+          }
+        },
+        "report": {
+          "status": "✅ SUCCESS",
+          "response_time": "N/Ams",
+          "data": {
+            "data": {
+              "success": false,
+              "error": "invalid literal for int() with base 10: 'test_user_1'"
+            },
+            "service": "report",
+            "timestamp": "2025-07-26T07:54:18.763056",
+            "status_code": 200,
+            "response_time": 0.002424001693725586
+          }
+        },
+        "flow": {
+          "status": "❌ FAILED (503)",
+          "error": "{\"error\":{\"code\":503,\"message\":\"Service flow_analysis unavailable\",\"timestamp\":\"2025-07-26T07:54:19.769648\",\"path\":\"/api/flow/execute\"}}",
+          "headers": {
+            "Date": "Fri, 25 Jul 2025 22:54:18 GMT",
+            "Server": "uvicorn",
+            "Content-Length": "136",
+            "Content-Type": "application/json",
+            "x-response-time": "0.004s",
+            "x-request-id": "req-1753484059765714"
+          }
+        }
+      },
+      "summary": {
+        "user_id": "test_user_1",
+        "user_name": "테스트유저1",
+        "successful_configs": "1/3",
+        "successful_services": "3/5",
+        "model_type": "gemini",
+        "total_success": false
+      }
+    },
+    "user_test_user_2": {
+      "config_setup": {
+        "user_config": {
+          "status": "✅ SUCCESS",
+          "data": {
+            "success": true,
+            "message": "사용자 설정 업데이트 완료: test_user_2",
+            "updated_fields": [
+              "username",
+              "phone_number",
+              "news_similarity_threshold",
+              "news_impact_threshold"
+            ]
+          }
+        },
+        "user_stocks": {
+          "status": "❌ FAILED (500)",
+          "data": "{\"error\":{\"code\":500,\"message\":\"사용자 종목 설정 실패: 500: 사용자 종목 설정에 실패했습니다\",\"timestamp\":\"2025-07-26T07:54:20.852188\",\"path\":\"/api/user/stocks/test_user_2\"}}"
+        },
+        "user_model": {
+          "status": "❌ FAILED (500)",
+          "data": "{\"error\":{\"code\":500,\"message\":\"사용자 모델 설정 실패: 500: 사용자 모델 설정에 실패했습니다\",\"timestamp\":\"2025-07-26T07:54:20.868349\",\"path\":\"/api/user/model/test_user_2\"}}"
+        }
+      },
+      "service_executions": {
+        "news": {
+          "status": "✅ SUCCESS",
+          "response_time": "N/Ams",
+          "data": {
+            "data": {
+              "success": false,
+              "error": "invalid literal for int() with base 10: 'test_user_2'"
+            },
+            "service": "news",
+            "timestamp": "2025-07-26T07:54:22.876276",
+            "status_code": 200,
+            "response_time": 0.005246877670288086
+          }
+        },
+        "disclosure": {
+          "status": "✅ SUCCESS",
+          "response_time": "N/Ams",
+          "data": {
+            "data": {
+              "success": false,
+              "error": "invalid literal for int() with base 10: 'test_user_2'"
+            },
+            "service": "disclosure",
+            "timestamp": "2025-07-26T07:54:23.882672",
+            "status_code": 200,
+            "response_time": 0.002950906753540039
+          }
+        },
+        "chart": {
+          "status": "❌ FAILED (503)",
+          "error": "{\"error\":{\"code\":503,\"message\":\"Service chart unavailable\",\"timestamp\":\"2025-07-26T07:54:24.889648\",\"path\":\"/api/chart/execute\"}}",
+          "headers": {
+            "Date": "Fri, 25 Jul 2025 22:54:24 GMT",
+            "Server": "uvicorn",
+            "Content-Length": "129",
+            "Content-Type": "application/json",
+            "x-response-time": "0.004s",
+            "x-request-id": "req-1753484064885927"
+          }
+        },
+        "report": {
+          "status": "✅ SUCCESS",
+          "response_time": "N/Ams",
+          "data": {
+            "data": {
+              "success": false,
+              "error": "invalid literal for int() with base 10: 'test_user_2'"
+            },
+            "service": "report",
+            "timestamp": "2025-07-26T07:54:25.895079",
+            "status_code": 200,
+            "response_time": 0.0024061203002929688
+          }
+        },
+        "flow": {
+          "status": "❌ FAILED (503)",
+          "error": "{\"error\":{\"code\":503,\"message\":\"Service flow_analysis unavailable\",\"timestamp\":\"2025-07-26T07:54:26.900594\",\"path\":\"/api/flow/execute\"}}",
+          "headers": {
+            "Date": "Fri, 25 Jul 2025 22:54:26 GMT",
+            "Server": "uvicorn",
+            "Content-Length": "136",
+            "Content-Type": "application/json",
+            "x-response-time": "0.003s",
+            "x-request-id": "req-1753484066897658"
+          }
+        }
+      },
+      "summary": {
+        "user_id": "test_user_2",
+        "user_name": "테스트유저2",
+        "successful_configs": "1/3",
+        "successful_services": "3/5",
+        "model_type": "gpt",
+        "total_success": false
+      }
+    }
+  }
+}

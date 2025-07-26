@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChromaDB Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .collection-card {
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .collection-card:hover {
+            transform: translateY(-5px);
+        }
+        .status-healthy {
+            color: #28a745;
+        }
+        .status-unhealthy {
+            color: #dc3545;
+        }
+        .navbar-brand {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-database"></i> ChromaDB Dashboard
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/search">
+                    <i class="fas fa-search"></i> 검색
+                </a>
+                <a class="nav-link" href="/api/docs" target="_blank">
+                    <i class="fas fa-code"></i> API 문서
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- 시스템 상태 -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="metric-card">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h4><i class="fas fa-heartbeat"></i> 시스템 상태</h4>
+                            <p class="mb-0">
+                                상태: 
+                                {% if health.status == 'healthy' %}
+                                    <span class="badge bg-success">정상</span>
+                                {% else %}
+                                    <span class="badge bg-danger">오류</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <h2><i class="fas fa-server"></i></h2>
+                            <small>{{ timestamp }}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 컬렉션 통계 -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h3><i class="fas fa-chart-bar"></i> 컬렉션 통계</h3>
+            </div>
+        </div>
+
+        <div class="row">
+            {% for collection_name, stat in stats.items() %}
+            <div class="col-md-6 col-lg-3 mb-4">
+                <div class="card collection-card h-100">
+                    <div class="card-body text-center">
+                        <div class="mb-3">
+                            {% if 'high_impact' in collection_name %}
+                                <i class="fas fa-exclamation-triangle fa-3x text-danger"></i>
+                            {% elif 'daily' in collection_name %}
+                                <i class="fas fa-calendar-day fa-3x text-primary"></i>
+                            {% elif 'keyword' in collection_name %}
+                                <i class="fas fa-tags fa-3x text-warning"></i>
+                            {% elif 'past' in collection_name %}
+                                <i class="fas fa-history fa-3x text-info"></i>
+                            {% else %}
+                                <i class="fas fa-folder fa-3x text-secondary"></i>
+                            {% endif %}
+                        </div>
+                        <h5 class="card-title">{{ collection_name }}</h5>
+                        <h2 class="text-primary">
+                            {% if stat is mapping %}
+                                {{ stat.count }}
+                            {% else %}
+                                {{ stat }}
+                            {% endif %}
+                        </h2>
+                        <p class="card-text text-muted">문서</p>
+                        <a href="/collection/{{ collection_name }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-eye"></i> 상세 보기
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 빠른 검색 -->
+        <div class="row mt-5">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-search"></i> 빠른 검색
+                        </h5>
+                        <form action="/api/search" method="post" id="quickSearchForm">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <select name="collection_name" class="form-select" required>
+                                        <option value="">컬렉션 선택</option>
+                                        {% for collection_name in stats.keys() %}
+                                        <option value="{{ collection_name }}">{{ collection_name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <input type="text" name="query" class="form-control" 
+                                           placeholder="검색어를 입력하세요 (빈칸시 전체 문서 조회)">
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="fas fa-search"></i> 검색
+                                    </button>
+                                </div>
+                            </div>
+                            <input type="hidden" name="top_k" value="10">
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 검색 결과 -->
+        <div id="searchResults" class="mt-4" style="display: none;">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">검색 결과</h5>
+                    <div id="resultsContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-light text-center py-3 mt-5">
+        <div class="container">
+            <p class="mb-0">
+                <i class="fas fa-database"></i> ChromaDB Dashboard v1.0.0 | 
+                마지막 업데이트: {{ timestamp }}
+            </p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 빠른 검색 폼 처리
+        document.getElementById('quickSearchForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const resultsDiv = document.getElementById('searchResults');
+            const container = document.getElementById('resultsContainer');
+            
+            try {
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    const resultType = data.is_full_list ? "전체 문서 조회" : "검색 결과";
+                    let html = `<p class="text-muted">${resultType}: "${data.query}" | 컬렉션: ${data.collection} | 결과: ${data.count}개</p>`;
+                    
+                    if (data.results && data.results.length > 0) {
+                        html += '<div class="list-group">';
+                        data.results.forEach((result, index) => {
+                            html += `
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">문서 #${index + 1}</h6>
+                                            <p class="mb-1">${result.document || 'N/A'}</p>
+                                            <small class="text-muted">유사도: ${(1 - (result.distance || 0)).toFixed(3)}</small>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <small class="text-muted">메타데이터: ${JSON.stringify(result.metadata || {})}</small>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                    } else {
+                        html += '<p class="text-muted">검색 결과가 없습니다.</p>';
+                    }
+                    
+                    container.innerHTML = html;
+                    resultsDiv.style.display = 'block';
+                    resultsDiv.scrollIntoView({ behavior: 'smooth' });
+                }
+            } catch (error) {
+                console.error('검색 오류:', error);
+                container.innerHTML = '<div class="alert alert-danger">검색 중 오류가 발생했습니다.</div>';
+                resultsDiv.style.display = 'block';
+            }
+        });
+        
+        // 페이지 로드시 자동 새로고침 (옵션)
+        // setInterval(() => location.reload(), 30000); // 30초마다 새로고침
+    </script>
+</body>
+</html> 

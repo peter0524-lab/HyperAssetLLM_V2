@@ -1,0 +1,25 @@
+# API Gateway 전용 의존성 패키지
+# 핵심 웹 프레임워크
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+aiohttp>=3.9.0
+
+# 모니터링 및 메트릭
+prometheus-client>=0.17.0
+structlog>=23.1.0
+
+# Circuit Breaker 패턴
+pybreaker>=0.8.0
+
+# 캐싱
+aioredis>=2.0.1
+
+# 시스템 모니터링
+psutil>=5.9.0
+
+# 유틸리티
+python-multipart>=0.0.6
+pydantic>=2.4.0
+
+# CORS 지원 (FastAPI에 포함되지만 명시)
+starlette>=0.27.0 

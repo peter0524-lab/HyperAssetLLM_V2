@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>뉴스 데이터 크로마 DB 대시보드</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tense, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            margin-bottom: 0.5rem;
+        }
+        
+        .header .timestamp {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #3498db;
+        }
+        
+        .card h2 {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-healthy { background-color: #27ae60; }
+        .status-warning { background-color: #f39c12; }
+        .status-error { background-color: #e74c3c; }
+        
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 1rem;
+            background: #ecf0f1;
+            border-radius: 4px;
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            margin-top: 0.5rem;
+        }
+        
+        .section {
+            margin-bottom: 2rem;
+        }
+        
+        .section h3 {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 0.5rem;
+        }
+        
+        .button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .button-primary {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        .button-success {
+            background-color: #27ae60;
+            color: white;
+        }
+        
+        .button-warning {
+            background-color: #f39c12;
+            color: white;
+        }
+        
+        .button-danger {
+            background-color: #e74c3c;
+            color: white;
+        }
+        
+        .button:hover {
+            opacity: 0.8;
+        }
+        
+        .collection-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+        
+        .collection-item {
+            background: white;
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 4px solid #3498db;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .collection-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .collection-name {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        
+        .collection-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+        
+        .news-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .news-item {
+            padding: 1rem;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        .news-item:last-child {
+            border-bottom: none;
+        }
+        
+        .news-title {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        
+        .news-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #7f8c8d;
+        }
+        
+        .impact-score {
+            font-weight: bold;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        
+        .impact-high { background-color: #e74c3c; color: white; }
+        .impact-medium { background-color: #f39c12; color: white; }
+        .impact-low { background-color: #27ae60; color: white; }
+        
+        .search-form {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .search-form input,
+        .search-form select {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            flex: 1;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 2rem;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+        }
+        
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: black;
+        }
+        
+        .alert {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 4px;
+        }
+        
+        .alert-success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .alert-warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        
+        .alert-error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .refresh-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .refresh-button:hover {
+            background-color: #2980b9;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .consistency-issues {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        
+        .consistency-issues h4 {
+            color: #856404;
+            margin-bottom: 0.5rem;
+        }
+        
+        .consistency-issues ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        
+        .consistency-issues li {
+            color: #856404;
+            margin-bottom: 0.3rem;
+        }
+        
+        .consistency-issues li::before {
+            content: "⚠️ ";
+            margin-right: 0.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+            
+            .search-form {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📰 뉴스 데이터 크로마 DB 대시보드</h1>
+        <div class="timestamp">마지막 업데이트: {{ timestamp }}</div>
+    </div>
+    
+    <div class="container">
+        <!-- 시스템 상태 -->
+        <div class="section">
+            <h3>🔍 시스템 상태</h3>
+            <div class="dashboard-grid">
+                <div class="card">
+                    <h2>크로마 DB 상태</h2>
+                    <div id="chroma-status">
+                        <span class="status-indicator" id="chroma-indicator"></span>
+                        <span id="chroma-status-text">확인 중...</span>
+                    </div>
+                    <div class="stat-grid" id="chroma-stats">
+                        <!-- 크로마 DB 통계가 여기에 표시됩니다 -->
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>MySQL 뉴스 데이터</h2>
+                    <div class="stat-grid" id="mysql-stats">
+                        <!-- MySQL 통계가 여기에 표시됩니다 -->
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>데이터 일관성 체크</h2>
+                    <div id="consistency-status">
+                        <span class="status-indicator" id="consistency-indicator"></span>
+                        <span id="consistency-status-text">확인 중...</span>
+                    </div>
+                    <div id="consistency-details">
+                        <!-- 일관성 체크 결과가 여기에 표시됩니다 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 컬렉션 목록 -->
+        <div class="section">
+            <h3>📚 크로마 DB 컬렉션</h3>
+            <div class="collection-list" id="collections">
+                <!-- 컬렉션 목록이 여기에 표시됩니다 -->
+            </div>
+        </div>
+        
+        <!-- 최근 뉴스 -->
+        <div class="section">
+            <h3>📰 최근 뉴스</h3>
+            <div class="dashboard-grid">
+                <div class="card">
+                    <h2>최근 뉴스 (오늘)</h2>
+                    <div class="news-list" id="recent-news">
+                        <!-- 최근 뉴스가 여기에 표시됩니다 -->
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>고영향 뉴스</h2>
+                    <div class="news-list" id="high-impact-news">
+                        <!-- 고영향 뉴스가 여기에 표시됩니다 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 검색 및 테스트 -->
+        <div class="section">
+            <h3>🔍 검색 및 테스트</h3>
+            <div class="card">
+                <h2>벡터 검색</h2>
+                <form class="search-form" id="search-form">
+                    <select id="collection-select" name="collection_name">
+                        <option value="high_impact_news">고영향 뉴스</option>
+                        <option value="daily_news">일일 뉴스</option>
+                        <option value="past_events">과거 이벤트</option>
+                        <option value="keywords">키워드</option>
+                    </select>
+                    <input type="text" id="search-query" name="query" placeholder="검색어를 입력하세요...">
+                    <button type="submit" class="button button-primary">검색</button>
+                </form>
+                <div id="search-results">
+                    <!-- 검색 결과가 여기에 표시됩니다 -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- 테스트 도구 -->
+        <div class="section">
+            <h3>🧪 테스트 도구</h3>
+            <div class="card">
+                <h2>데이터 쓰기/읽기 테스트</h2>
+                <div>
+                    <button class="button button-success" id="test-write">테스트 데이터 쓰기</button>
+                    <button class="button button-warning" id="test-read">데이터 읽기 테스트</button>
+                    <button class="button button-danger" id="test-cleanup">테스트 데이터 정리</button>
+                </div>
+                <div id="test-results">
+                    <!-- 테스트 결과가 여기에 표시됩니다 -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 새로고침 버튼 -->
+    <button class="refresh-button" id="refresh-btn" title="새로고침">🔄</button>
+    
+    <!-- 로딩 상태 -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div>로딩 중...</div>
+    </div>
+    
+    <!-- 모달 -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <span class="close" id="modal-close">&times;</span>
+            <div id="modal-content-body">
+                <!-- 모달 내용이 여기에 표시됩니다 -->
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 전역 변수
+        let isLoading = false;
+        let refreshInterval = null;
+        
+        // DOM 로드 완료 시 실행
+        document.addEventListener('DOMContentLoaded', function() {
+            loadInitialData();
+            setupEventListeners();
+            startAutoRefresh();
+        });
+        
+        // 초기 데이터 로드
+        async function loadInitialData() {
+            await loadStats();
+            await loadCollections();
+            await loadRecentNews();
+            await loadHighImpactNews();
+        }
+        
+        // 이벤트 리스너 설정
+        function setupEventListeners() {
+            // 새로고침 버튼
+            document.getElementById('refresh-btn').addEventListener('click', function() {
+                loadInitialData();
+            });
+            
+            // 검색 폼
+            document.getElementById('search-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                performSearch();
+            });
+            
+            // 테스트 버튼들
+            document.getElementById('test-write').addEventListener('click', testWrite);
+            document.getElementById('test-read').addEventListener('click', testRead);
+            document.getElementById('test-cleanup').addEventListener('click', testCleanup);
+            
+            // 모달 닫기
+            document.getElementById('modal-close').addEventListener('click', function() {
+                document.getElementById('modal').style.display = 'none';
+            });
+        }
+        
+        // 자동 새로고침 설정
+        function startAutoRefresh() {
+            refreshInterval = setInterval(loadStats, 30000); // 30초마다 통계 업데이트
+        }
+        
+        // 통계 로드
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                
+                updateChromaStatus(data.chroma_health, data.chroma_stats);
+                updateMySQLStats(data.mysql_stats);
+                updateConsistencyCheck(data.consistency_check);
+                
+            } catch (error) {
+                console.error('통계 로드 실패:', error);
+                showAlert('통계 로드 실패: ' + error.message, 'error');
+            }
+        }
+        
+        // 크로마 DB 상태 업데이트
+        function updateChromaStatus(health, stats) {
+            const indicator = document.getElementById('chroma-indicator');
+            const statusText = document.getElementById('chroma-status-text');
+            const statsContainer = document.getElementById('chroma-stats');
+            
+            // 상태 표시
+            if (health.status === 'healthy') {
+                indicator.className = 'status-indicator status-healthy';
+                statusText.textContent = '정상 동작';
+            } else {
+                indicator.className = 'status-indicator status-error';
+                statusText.textContent = '오류 발생';
+            }
+            
+            // 통계 표시
+            statsContainer.innerHTML = '';
+            if (stats) {
+                Object.entries(stats).forEach(([key, value]) => {
+                    const count = typeof value === 'object' ? value.count || 0 : value;
+                    const statItem = document.createElement('div');
+                    statItem.className = 'stat-item';
+                    statItem.innerHTML = `
+                        <div class="stat-number">${count}</div>
+                        <div class="stat-label">${key}</div>
+                    `;
+                    statsContainer.appendChild(statItem);
+                });
+            }
+        }
+        
+        // MySQL 통계 업데이트
+        function updateMySQLStats(stats) {
+            const container = document.getElementById('mysql-stats');
+            container.innerHTML = '';
+            
+            if (stats) {
+                const statItems = [
+                    { label: '오늘 뉴스', value: stats.today_news_count || 0 },
+                    { label: '고영향 뉴스', value: stats.high_impact_count || 0 },
+                    { label: '최근 1시간', value: stats.recent_news_count || 0 }
+                ];
+                
+                statItems.forEach(item => {
+                    const statItem = document.createElement('div');
+                    statItem.className = 'stat-item';
+                    statItem.innerHTML = `
+                        <div class="stat-number">${item.value}</div>
+                        <div class="stat-label">${item.label}</div>
+                    `;
+                    container.appendChild(statItem);
+                });
+            }
+        }
+        
+        // 일관성 체크 업데이트
+        function updateConsistencyCheck(consistency) {
+            const indicator = document.getElementById('consistency-indicator');
+            const statusText = document.getElementById('consistency-status-text');
+            const details = document.getElementById('consistency-details');
+            
+            if (consistency.status === 'healthy') {
+                indicator.className = 'status-indicator status-healthy';
+                statusText.textContent = '데이터 일관성 정상';
+            } else if (consistency.status === 'warning') {
+                indicator.className = 'status-indicator status-warning';
+                statusText.textContent = '데이터 일관성 경고';
+            } else {
+                indicator.className = 'status-indicator status-error';
+                statusText.textContent = '데이터 일관성 오류';
+            }
+            
+            // 상세 정보 표시
+            details.innerHTML = '';
+            if (consistency.issues && consistency.issues.length > 0) {
+                const issuesDiv = document.createElement('div');
+                issuesDiv.className = 'consistency-issues';
+                issuesDiv.innerHTML = `
+                    <h4>일관성 문제 발견:</h4>
+                    <ul>
+                        ${consistency.issues.map(issue => `<li>${issue}</li>`).join('')}
+                    </ul>
+                `;
+                details.appendChild(issuesDiv);
+            }
+        }
+        
+        // 컬렉션 목록 로드
+        async function loadCollections() {
+            try {
+                const response = await fetch('/api/collections');
+                const data = await response.json();
+                
+                const container = document.getElementById('collections');
+                container.innerHTML = '';
+                
+                if (data.collections) {
+                    data.collections.forEach(collection => {
+                        const item = document.createElement('div');
+                        item.className = 'collection-item';
+                        item.innerHTML = `
+                            <div class="collection-name">${collection.name}</div>
+                            <div class="collection-stats">
+                                <span>문서 수: ${collection.count}</span>
+                                <span class="status-indicator ${collection.status === 'active' ? 'status-healthy' : 'status-warning'}"></span>
+                            </div>
+                        `;
+                        item.addEventListener('click', () => {
+                            window.location.href = `/collection/${collection.name}`;
+                        });
+                        container.appendChild(item);
+                    });
+                }
+            } catch (error) {
+                console.error('컬렉션 로드 실패:', error);
+                showAlert('컬렉션 로드 실패: ' + error.message, 'error');
+            }
+        }
+        
+        // 최근 뉴스 로드
+        async function loadRecentNews() {
+            try {
+                const response = await fetch('/api/news/recent?limit=10');
+                const data = await response.json();
+                
+                const container = document.getElementById('recent-news');
+                container.innerHTML = '';
+                
+                if (data.recent_news && data.recent_news.length > 0) {
+                    data.recent_news.forEach(news => {
+                        const item = document.createElement('div');
+                        item.className = 'news-item';
+                        item.innerHTML = `
+                            <div class="news-title">${news.title}</div>
+                            <div class="news-meta">
+                                <span>종목: ${news.stock_code}</span>
+                                <span class="impact-score ${getImpactClass(news.impact_score)}">
+                                    영향도: ${news.impact_score}
+                                </span>
+                            </div>
+                        `;
+                        container.appendChild(item);
+                    });
+                } else {
+                    container.innerHTML = '<div class="news-item">최근 뉴스가 없습니다.</div>';
+                }
+            } catch (error) {
+                console.error('최근 뉴스 로드 실패:', error);
+                showAlert('최근 뉴스 로드 실패: ' + error.message, 'error');
+            }
+        }
+        
+        // 고영향 뉴스 로드
+        async function loadHighImpactNews() {
+            try {
+                const response = await fetch('/api/news/high-impact?limit=10');
+                const data = await response.json();
+                
+                const container = document.getElementById('high-impact-news');
+                container.innerHTML = '';
+                
+                if (data.high_impact_news && data.high_impact_news.length > 0) {
+                    data.high_impact_news.forEach(news => {
+                        const item = document.createElement('div');
+                        item.className = 'news-item';
+                        item.innerHTML = `
+                            <div class="news-title">${news.title}</div>
+                            <div class="news-meta">
+                                <span>종목: ${news.stock_code}</span>
+                                <span class="impact-score ${getImpactClass(news.impact_score)}">
+                                    영향도: ${news.impact_score}
+                                </span>
+                            </div>
+                        `;
+                        container.appendChild(item);
+                    });
+                } else {
+                    container.innerHTML = '<div class="news-item">고영향 뉴스가 없습니다.</div>';
+                }
+            } catch (error) {
+                console.error('고영향 뉴스 로드 실패:', error);
+                showAlert('고영향 뉴스 로드 실패: ' + error.message, 'error');
+            }
+        }
+        
+        // 영향도 클래스 반환
+        function getImpactClass(score) {
+            if (score >= 0.7) return 'impact-high';
+            if (score >= 0.4) return 'impact-medium';
+            return 'impact-low';
+        }
+        
+        // 검색 실행
+        async function performSearch() {
+            const form = document.getElementById('search-form');
+            const formData = new FormData(form);
+            
+            try {
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                displaySearchResults(data);
+            } catch (error) {
+                console.error('검색 실패:', error);
+                showAlert('검색 실패: ' + error.message, 'error');
+            }
+        }
+        
+        // 검색 결과 표시
+        function displaySearchResults(data) {
+            const container = document.getElementById('search-results');
+            container.innerHTML = '';
+            
+            if (data.results && data.results.length > 0) {
+                const resultsDiv = document.createElement('div');
+                resultsDiv.innerHTML = `
+                    <h4>검색 결과 (${data.count}개)</h4>
+                    <div class="search-results-list">
+                        ${data.results.map(result => `
+                            <div class="search-result-item">
+                                <div class="result-document">${result.document}</div>
+                                <div class="result-meta">
+                                    <span>ID: ${result.id}</span>
+                                    <span>유사도: ${(result.score || 0).toFixed(3)}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                container.appendChild(resultsDiv);
+            } else {
+                container.innerHTML = '<div class="alert alert-warning">검색 결과가 없습니다.</div>';
+            }
+        }
+        
+        // 테스트 함수들
+        async function testWrite() {
+            try {
+                const response = await fetch('/api/test-write', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('테스트 데이터 쓰기 성공: ' + data.document_id, 'success');
+                } else {
+                    showAlert('테스트 데이터 쓰기 실패', 'error');
+                }
+            } catch (error) {
+                console.error('테스트 쓰기 실패:', error);
+                showAlert('테스트 쓰기 실패: ' + error.message, 'error');
+            }
+        }
+        
+        async function testRead() {
+            try {
+                const response = await fetch('/api/collections/high_impact_news/documents?limit=5');
+                const data = await response.json();
+                
+                if (data.documents && data.documents.length > 0) {
+                    showAlert(`테스트 데이터 읽기 성공: ${data.documents.length}개 문서 조회`, 'success');
+                } else {
+                    showAlert('테스트 데이터 읽기 실패: 문서 없음', 'warning');
+                }
+            } catch (error) {
+                console.error('테스트 읽기 실패:', error);
+                showAlert('테스트 읽기 실패: ' + error.message, 'error');
+            }
+        }
+        
+        async function testCleanup() {
+            try {
+                const response = await fetch('/api/test-cleanup', { method: 'DELETE' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('테스트 데이터 정리 완료', 'success');
+                } else {
+                    showAlert('테스트 데이터 정리 실패', 'error');
+                }
+            } catch (error) {
+                console.error('테스트 정리 실패:', error);
+                showAlert('테스트 정리 실패: ' + error.message, 'error');
+            }
+        }
+        
+        // 알림 표시
+        function showAlert(message, type) {
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            
+            document.body.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+        
+        // 페이지 종료 시 자동 새로고침 정리
+        window.addEventListener('beforeunload', function() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        });
+    </script>
+</body>
+</html> 

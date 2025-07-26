@@ -1,0 +1,151 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2024-01-01T00:00:00Z",
+  "default_settings": {
+    "news_crawling": true,
+    "disclosure_check": true,
+    "chart_analysis": true,
+    "notifications": true,
+    "report_generation": true,
+    "impact_analysis": true
+  },
+  "stocks": [
+    {
+      "code": "006800",
+      "name": "미래에셋증권",
+      "market": "KOSPI",
+      "sector": "증권",
+      "enabled": true,
+      "priority": 1,
+      "settings": {
+        "news_crawling": true,
+        "disclosure_check": true,
+        "chart_analysis": true,
+        "notifications": true,
+        "report_generation": true,
+        "impact_analysis": true
+      },
+      "thresholds": {
+        "news_impact_threshold": 0.7,
+        "price_change_threshold": 0.1,
+        "volume_threshold": 10000000,
+        "similarity_threshold": 0.7
+      },
+      "keywords": [
+        "미래에셋증권",
+        "미래에셋",
+        "증권",
+        "금융",
+        "투자",
+        "자산관리",
+        "브로커리지",
+        "IB",
+        "자본시장"
+      ],
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "chart_conditions": [
+    {
+      "id": "golden_cross",
+      "name": "골든크로스",
+      "description": "단기 이동평균선이 장기 이동평균선을 상향 돌파",
+      "enabled": true,
+      "parameters": {
+        "short_period": 5,
+        "long_period": 20
+      }
+    },
+    {
+      "id": "death_cross",
+      "name": "데드크로스",
+      "description": "단기 이동평균선이 장기 이동평균선을 하향 돌파",
+      "enabled": true,
+      "parameters": {
+        "short_period": 5,
+        "long_period": 20
+      }
+    },
+    {
+      "id": "bollinger_touch",
+      "name": "볼린저밴드 터치",
+      "description": "주가가 볼린저밴드 상단 또는 하단에 터치",
+      "enabled": true,
+      "parameters": {
+        "period": 20,
+        "std_dev": 2
+      }
+    },
+    {
+      "id": "ma20_touch",
+      "name": "20일선 터치",
+      "description": "주가가 20일 이동평균선에 터치",
+      "enabled": true,
+      "parameters": {
+        "period": 20,
+        "touch_threshold": 0.01
+      }
+    },
+    {
+      "id": "rsi_extreme",
+      "name": "RSI 과매수/과매도",
+      "description": "RSI 70 이상(과매수) 또는 30 이하(과매도) 진입",
+      "enabled": true,
+      "parameters": {
+        "period": 14,
+        "overbought": 70,
+        "oversold": 30
+      }
+    },
+    {
+      "id": "volume_surge",
+      "name": "거래량 급증",
+      "description": "평균 거래량 대비 300% 이상 급증",
+      "enabled": true,
+      "parameters": {
+        "period": 20,
+        "surge_ratio": 3.0
+      }
+    },
+    {
+      "id": "macd_golden_cross",
+      "name": "MACD 골든크로스",
+      "description": "MACD 선이 시그널 선을 상향 돌파",
+      "enabled": true,
+      "parameters": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9
+      }
+    },
+    {
+      "id": "support_resistance_break",
+      "name": "지지선/저항선 돌파",
+      "description": "주요 지지선 하향 돌파 또는 저항선 상향 돌파",
+      "enabled": true,
+      "parameters": {
+        "lookback_period": 20,
+        "break_threshold": 0.02
+      }
+    }
+  ],
+  "notification_templates": {
+    "news_alert": {
+      "title": "📰 {stock_name} 고영향 뉴스",
+      "message": "🔥 {stock_name}에 중요한 뉴스가 발생했습니다!\n\n📄 **뉴스 요약**\n{news_summary}\n\n📈 **과거 유사 사례**\n{similar_case}\n\n💹 **주가 영향 예상**\n{price_impact}\n\n💡 이와 같습니다!! 오늘 하루도 성투하세요~!"
+    },
+    "disclosure_alert": {
+      "title": "📋 {stock_name} 중요 공시",
+      "message": "📢 {stock_name}에 중요한 공시가 있었습니다!\n\n📄 **공시 요약**\n{disclosure_summary}\n\n📈 **유사 과거 사례**\n{similar_case}\n\n💹 **주가 영향 예상**\n{price_impact}\n\n💡 이와 같습니다!! 오늘 하루도 성투하세요~!"
+    },
+    "chart_alert": {
+      "title": "📊 {stock_name} 차트 패턴",
+      "message": "🚨 {stock_name}에 중요한 차트 패턴이 발생했습니다!\n\n📊 **차트 상황**\n{chart_condition}\n\n📈 **유사 과거 사례**\n{similar_case}\n\n💹 **주가 영향 예상**\n{price_impact}\n\n💡 이와 같습니다!! 오늘 하루도 성투하세요~!"
+    },
+    "weekly_report": {
+      "title": "📈 {stock_name} 주간 보고서",
+      "message": "📊 {stock_name} 이번 주 종합 분석 보고서입니다.\n\n{report_content}\n\n📚 더 자세한 내용은 첨부된 보고서를 확인해주세요!"
+    }
+  }
+} 

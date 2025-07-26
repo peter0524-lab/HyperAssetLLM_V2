@@ -1,0 +1,54 @@
+테스트 실행 시간: 2025-07-12 06:32:25.226127
+대상 기업: 005930
+조회된 공시 수: 2
+
+
+==================================================
+공시 1/2
+제목: 기업설명회(IR)개최(안내공시)
+접수번호: 20250708800050
+접수일자: 20250708
+제출인: 삼성전자
+
+[상세 내용]
+OpenDARTìì¤í  /* default */ html {height:100%;} div, p, ul, li, table, th, td, textarea, input, form, h1, h2, h3, h4, h5, h6, dt, dl, dd, em, address, cite, ul, ol, dl, dd, dt, li {list-style-type:none;margin:0;padding:0px;color:#333;box-sizing:border-box;} body {width:100%;height:100%;margin:0px;padding:0px;font-family:"ë§ì ê³ ë", "Malgun Gothic", sans-serif;font-size:13px;color:#333;line-height:1.15;font-weight:normal;overflow-Y:scroll;} button {padding:0;margin:0;background-color:transparent;color:#fff;border:none;/* outline:none !important;*/ } caption{display:none;overflow:hidden;width:0;height:0;font-size:0;text-indent:-9999em;} abbr, img, fieldset {border:0 none;/* tab focus */} /* link */ a {text-decoration:none;color:#333;} a:link {text-decoration:none;color:#333;} table td span a {text-decoration:none;color:#333;} table td a:visited {text-decoration:none;color:#cd0093;} .tbWideList th a.second:visited{text-decoration:none;color:#cd0093;} a:hover, a:focus, a:active {text-decoration:none;color:#397fe7;} a:focus, img:focus {/* outline:none */} body {background: var(--bgColor);} .errorWrap {margin:0 auto;margin-top:5%;width:650px;position:relative;} .errorWrap .top {margin-bottom:20px;display:block;} .errorWrap .top .logo {margin-top:24px;width:120px;height:43px;background:url(/images/logo.png) no-repeat;background-size:100%;display:block;cursor:pointer;font-size:0;} .errorWrap .contWrap {width:100%;padding:20px 50px 30px 50px;background:#fff;position:relative;border:5px solid #ccc;display:block;clear:both;} .errorWrap .contWrap .imgError {margin:0 auto;margin-bottom:0;width:260px;height:190px;padding:0;background:url(https://dart.fss.or.kr/images/icon_error.png) no-repeat center top;background-size:100%;display:block;} .errorWrap .contWrap .infoWrap {padding:20px 30px 30px 30px;line-height:180%;border:1px solid #e1e1e1;border-radius:5px;} .errorWrap .contWrap .alert {padding:0;font-size:20px;color:#0000ff;font-weight:900;line-height:170%;padding-bott
+
+전체 데이터(JSON):
+{
+  "stock_code": "005930",
+  "corp_code": "00126380",
+  "corp_name": "삼성전자",
+  "rcept_no": "20250708800050",
+  "report_nm": "기업설명회(IR)개최(안내공시)              ",
+  "rcept_dt": "20250708",
+  "flr_nm": "삼성전자",
+  "rm": "유",
+  "created_at": "2025-07-12 06:32:24.810263",
+  "content": "OpenDARTìì¤í  /* default */ html {height:100%;} div, p, ul, li, table, th, td, textarea, input, form, h1, h2, h3, h4, h5, h6, dt, dl, dd, em, address, cite, ul, ol, dl, dd, dt, li {list-style-type:none;margin:0;padding:0px;color:#333;box-sizing:border-box;} body {width:100%;height:100%;margin:0px;padding:0px;font-family:\"ë§ì ê³ ë\", \"Malgun Gothic\", sans-serif;font-size:13px;color:#333;line-height:1.15;font-weight:normal;overflow-Y:scroll;} button {padding:0;margin:0;background-color:transparent;color:#fff;border:none;/* outline:none !important;*/ } caption{display:none;overflow:hidden;width:0;height:0;font-size:0;text-indent:-9999em;} abbr, img, fieldset {border:0 none;/* tab focus */} /* link */ a {text-decoration:none;color:#333;} a:link {text-decoration:none;color:#333;} table td span a {text-decoration:none;color:#333;} table td a:visited {text-decoration:none;color:#cd0093;} .tbWideList th a.second:visited{text-decoration:none;color:#cd0093;} a:hover, a:focus, a:active {text-decoration:none;color:#397fe7;} a:focus, img:focus {/* outline:none */} body {background: var(--bgColor);} .errorWrap {margin:0 auto;margin-top:5%;width:650px;position:relative;} .errorWrap .top {margin-bottom:20px;display:block;} .errorWrap .top .logo {margin-top:24px;width:120px;height:43px;background:url(/images/logo.png) no-repeat;background-size:100%;display:block;cursor:pointer;font-size:0;} .errorWrap .contWrap {width:100%;padding:20px 50px 30px 50px;background:#fff;position:relative;border:5px solid #ccc;display:block;clear:both;} .errorWrap .contWrap .imgError {margin:0 auto;margin-bottom:0;width:260px;height:190px;padding:0;background:url(https://dart.fss.or.kr/images/icon_error.png) no-repeat center top;background-size:100%;display:block;} .errorWrap .contWrap .infoWrap {padding:20px 30px 30px 30px;line-height:180%;border:1px solid #e1e1e1;border-radius:5px;} .errorWrap .contWrap .alert {padding:0;font-size:20px;color:#0000ff;font-weight:900;line-height:170%;padding-bott",
+  "attach_files": []
+}
+
+==================================================
+공시 2/2
+제목: 주요사항보고서(자기주식취득결정)
+접수번호: 20250708000011
+접수일자: 20250708
+제출인: 삼성전자
+
+[상세 내용]
+OpenDARTìì¤í  /* default */ html {height:100%;} div, p, ul, li, table, th, td, textarea, input, form, h1, h2, h3, h4, h5, h6, dt, dl, dd, em, address, cite, ul, ol, dl, dd, dt, li {list-style-type:none;margin:0;padding:0px;color:#333;box-sizing:border-box;} body {width:100%;height:100%;margin:0px;padding:0px;font-family:"ë§ì ê³ ë", "Malgun Gothic", sans-serif;font-size:13px;color:#333;line-height:1.15;font-weight:normal;overflow-Y:scroll;} button {padding:0;margin:0;background-color:transparent;color:#fff;border:none;/* outline:none !important;*/ } caption{display:none;overflow:hidden;width:0;height:0;font-size:0;text-indent:-9999em;} abbr, img, fieldset {border:0 none;/* tab focus */} /* link */ a {text-decoration:none;color:#333;} a:link {text-decoration:none;color:#333;} table td span a {text-decoration:none;color:#333;} table td a:visited {text-decoration:none;color:#cd0093;} .tbWideList th a.second:visited{text-decoration:none;color:#cd0093;} a:hover, a:focus, a:active {text-decoration:none;color:#397fe7;} a:focus, img:focus {/* outline:none */} body {background: var(--bgColor);} .errorWrap {margin:0 auto;margin-top:5%;width:650px;position:relative;} .errorWrap .top {margin-bottom:20px;display:block;} .errorWrap .top .logo {margin-top:24px;width:120px;height:43px;background:url(/images/logo.png) no-repeat;background-size:100%;display:block;cursor:pointer;font-size:0;} .errorWrap .contWrap {width:100%;padding:20px 50px 30px 50px;background:#fff;position:relative;border:5px solid #ccc;display:block;clear:both;} .errorWrap .contWrap .imgError {margin:0 auto;margin-bottom:0;width:260px;height:190px;padding:0;background:url(https://dart.fss.or.kr/images/icon_error.png) no-repeat center top;background-size:100%;display:block;} .errorWrap .contWrap .infoWrap {padding:20px 30px 30px 30px;line-height:180%;border:1px solid #e1e1e1;border-radius:5px;} .errorWrap .contWrap .alert {padding:0;font-size:20px;color:#0000ff;font-weight:900;line-height:170%;padding-bott
+
+전체 데이터(JSON):
+{
+  "stock_code": "005930",
+  "corp_code": "00126380",
+  "corp_name": "삼성전자",
+  "rcept_no": "20250708000011",
+  "report_nm": "주요사항보고서(자기주식취득결정)",
+  "rcept_dt": "20250708",
+  "flr_nm": "삼성전자",
+  "rm": "",
+  "created_at": "2025-07-12 06:32:25.099475",
+  "content": "OpenDARTìì¤í  /* default */ html {height:100%;} div, p, ul, li, table, th, td, textarea, input, form, h1, h2, h3, h4, h5, h6, dt, dl, dd, em, address, cite, ul, ol, dl, dd, dt, li {list-style-type:none;margin:0;padding:0px;color:#333;box-sizing:border-box;} body {width:100%;height:100%;margin:0px;padding:0px;font-family:\"ë§ì ê³ ë\", \"Malgun Gothic\", sans-serif;font-size:13px;color:#333;line-height:1.15;font-weight:normal;overflow-Y:scroll;} button {padding:0;margin:0;background-color:transparent;color:#fff;border:none;/* outline:none !important;*/ } caption{display:none;overflow:hidden;width:0;height:0;font-size:0;text-indent:-9999em;} abbr, img, fieldset {border:0 none;/* tab focus */} /* link */ a {text-decoration:none;color:#333;} a:link {text-decoration:none;color:#333;} table td span a {text-decoration:none;color:#333;} table td a:visited {text-decoration:none;color:#cd0093;} .tbWideList th a.second:visited{text-decoration:none;color:#cd0093;} a:hover, a:focus, a:active {text-decoration:none;color:#397fe7;} a:focus, img:focus {/* outline:none */} body {background: var(--bgColor);} .errorWrap {margin:0 auto;margin-top:5%;width:650px;position:relative;} .errorWrap .top {margin-bottom:20px;display:block;} .errorWrap .top .logo {margin-top:24px;width:120px;height:43px;background:url(/images/logo.png) no-repeat;background-size:100%;display:block;cursor:pointer;font-size:0;} .errorWrap .contWrap {width:100%;padding:20px 50px 30px 50px;background:#fff;position:relative;border:5px solid #ccc;display:block;clear:both;} .errorWrap .contWrap .imgError {margin:0 auto;margin-bottom:0;width:260px;height:190px;padding:0;background:url(https://dart.fss.or.kr/images/icon_error.png) no-repeat center top;background-size:100%;display:block;} .errorWrap .contWrap .infoWrap {padding:20px 30px 30px 30px;line-height:180%;border:1px solid #e1e1e1;border-radius:5px;} .errorWrap .contWrap .alert {padding:0;font-size:20px;color:#0000ff;font-weight:900;line-height:170%;padding-bott",
+  "attach_files": []
+}
