@@ -1,10 +1,12 @@
 
 import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { ArrowRight } from "lucide-react";
 import LottieAnimation from "./LottieAnimation";
 
 const Hero = () => {
+  const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [lottieData, setLottieData] = useState<any>(null);
@@ -127,9 +129,9 @@ const Hero = () => {
               className="flex flex-col sm:flex-row gap-4 opacity-0 animate-fade-in" 
               style={{ animationDelay: "0.7s" }}
             >
-              <a 
-                href="#get-access" 
-                className="flex items-center justify-center group w-full sm:w-auto text-center" 
+              <button 
+                onClick={() => navigate('/dashboard')}
+                className="flex items-center justify-center group w-full sm:w-auto text-center transition-all duration-300 hover:scale-105 hover:shadow-lg" 
                 style={{
                   backgroundColor: '#FE5C02',
                   borderRadius: '1440px',
@@ -142,9 +144,9 @@ const Hero = () => {
                   border: '1px solid white',
                 }}
               >
-                Request Access
+                🚀 대시보드 시작하기
                 <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
-              </a>
+              </button>
             </div>
           </div>
           

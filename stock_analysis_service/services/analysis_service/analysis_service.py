@@ -649,7 +649,7 @@ async def main():
         service_thread.start()
         
         # FastAPI 서버 실행
-        uvicorn.run(app, host="0.0.0.0", port=8005)
+        uvicorn.run(app, host="0.0.0.0", port=8009)
 
     except KeyboardInterrupt:
         print("서비스 중단")

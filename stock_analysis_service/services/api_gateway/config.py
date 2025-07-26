@@ -117,6 +117,27 @@ SERVICES_CONFIG = {
         base_path="/api/orchestrator",
         timeout=10.0,
         circuit_breaker_threshold=3
+    ),
+    "issue_scheduler": ServiceConfig(
+        name="Issue Scheduler Service",
+        instances=["http://localhost:8007"],
+        base_path="/api/issue",
+        timeout=15.0,
+        circuit_breaker_threshold=5
+    ),
+    "business_report": ServiceConfig(
+        name="Business Report Service",
+        instances=["http://localhost:8008"],
+        base_path="/api/business",
+        timeout=30.0,
+        circuit_breaker_threshold=5
+    ),
+    "analysis": ServiceConfig(
+        name="Analysis Service",
+        instances=["http://localhost:8009"],
+        base_path="/api/analysis",
+        timeout=20.0,
+        circuit_breaker_threshold=5
     )
 }
 

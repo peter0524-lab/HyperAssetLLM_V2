@@ -87,7 +87,8 @@ def kill_existing_services():
     """기존 실행 중인 서비스들 종료"""
     log_info("기존 실행 중인 서비스들 확인 및 종료...")
     
-    ports = [8001, 8002, 8003, 8004, 8005, 8006, 8010]
+   # ports = [8001, 8002, 8003, 8004, 8005, 8006, 8007, 8008, 8009, 8010]
+    ports = [8001,8002,8003,8004,8005,8006,8010]
     
     for port in ports:
         try:
@@ -166,6 +167,24 @@ def main():
             "port": 8004,
             "wait_time": 8
         },
+       # {
+        #    "name": "Issue Scheduler Service",
+        #        "command": [sys.executable, "services/issue_scheduler/issue_scheduler.py"],
+        #        "port": 8007,
+        #        "wait_time": 8
+        #},
+        #{
+        #    "name": "Business Report Service",
+        #    "command": [sys.executable, "services/business_report_service/business_report_service.py"],
+        #    "port": 8008,
+        #    "wait_time": 8
+        #},
+       # {
+        #    "name": "Analysis Service",
+        #    "command": [sys.executable, "services/analysis_service/analysis_service.py"],
+        #    "port": 8009,
+        #    "wait_time": 8
+        #},
         {
             "name": "API Gateway",
             "command": [sys.executable, "services/api_gateway/main.py"],

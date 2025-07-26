@@ -362,6 +362,42 @@ class OptimizedAPIGateway:
                     exclude=[aiohttp.ClientTimeout]
                 ),
                 timeout=10.0
+            ),
+            "issue_scheduler": ServiceConfig(
+                name="Issue Scheduler Service",
+                instances=["http://localhost:8007"],
+                base_path="/api/issue",
+                enabled=True,
+                circuit_breaker=CircuitBreaker(
+                    fail_max=5,
+                    reset_timeout=60,
+                    exclude=[aiohttp.ClientTimeout]
+                ),
+                timeout=15.0
+            ),
+            "business_report": ServiceConfig(
+                name="Business Report Service",
+                instances=["http://localhost:8008"],
+                base_path="/api/business",
+                enabled=True,
+                circuit_breaker=CircuitBreaker(
+                    fail_max=5,
+                    reset_timeout=60,
+                    exclude=[aiohttp.ClientTimeout]
+                ),
+                timeout=30.0
+            ),
+            "analysis": ServiceConfig(
+                name="Analysis Service",
+                instances=["http://localhost:8009"],
+                base_path="/api/analysis",
+                enabled=True,
+                circuit_breaker=CircuitBreaker(
+                    fail_max=5,
+                    reset_timeout=60,
+                    exclude=[aiohttp.ClientTimeout]
+                ),
+                timeout=20.0
             )
         }
 
