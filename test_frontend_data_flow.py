@@ -40,7 +40,7 @@ class FrontendDataFlowTester:
                 # 1단계: 사용자 프로필 (데이터_85.json 구조)
                                  "profile": {
                      "username": "김투자",
-                     "phone_number": "01012345678",
+                     "phone_number": "01099998888",
                      "news_similarity_threshold": 0.8,
                      "news_impact_threshold": 0.6
                  },
@@ -65,7 +65,7 @@ class FrontendDataFlowTester:
             {
                                  "profile": {
                      "username": "박분석가",
-                     "phone_number": "01087654321",
+                     "phone_number": "01077776666",
                      "news_similarity_threshold": 1.0,
                      "news_impact_threshold": 0.7
                  },

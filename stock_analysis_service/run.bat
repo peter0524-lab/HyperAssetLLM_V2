@@ -1,3 +1,0 @@
-@echo off
-echo 🚀 주식 분석 서비스 실행 중...
-venv\Scripts\activate && python run.py 

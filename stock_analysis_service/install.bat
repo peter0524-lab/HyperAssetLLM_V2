@@ -1,3 +1,0 @@
-@echo off
-echo 🚀 주식 분석 서비스 설치 중...
-python -m venv venv && venv\Scripts\activate && pip install --upgrade pip && pip install -r requirements.txt && mkdir data 2>nul && mkdir data\chroma 2>nul && python utils/init_database.py && echo ✅ 설치 완료! && echo 다음 실행: venv\Scripts\activate 후 python run.py 
