@@ -11,6 +11,7 @@ import Results from "./pages/Results";
 import Contact from "./pages/Contact";
 import Auth from "./pages/Auth";
 import ModelSelection from "./pages/ModelSelection";
+import ServiceActivation from "./pages/ServiceActivation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/profile" element={<Profile />} />
           <Route path="/stocks" element={<Stocks />} />
           <Route path="/model-selection" element={<ModelSelection />} />
+          <Route path="/service-activation" element={<ServiceActivation />} />
           <Route path="/results" element={<Results />} />
           <Route path="/contact" element={<Contact />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

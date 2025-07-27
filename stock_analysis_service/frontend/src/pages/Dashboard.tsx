@@ -16,12 +16,15 @@ import {
   Loader2,
   Settings,
   Play,
-  Eye
+  Eye,
+  Monitor,
+  Terminal
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { api, userStorage, UserConfig } from "@/lib/api";
 import TradingViewChart from "@/components/TradingViewChart";
+import ServiceMonitor from "@/components/ServiceMonitor";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -31,6 +34,7 @@ const Dashboard = () => {
     company_name: string;
     sector: string;
   } | null>(null);
+  const [viewMode, setViewMode] = useState<'dashboard' | 'monitor'>('dashboard');
 
   useEffect(() => {
     // 사용자 ID 확인
@@ -124,11 +128,39 @@ const Dashboard = () => {
       <section className="bg-gradient-to-br from-gray-50 to-white py-12">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8">
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-4">
-              📊 투자 대시보드
-            </h1>
+            <div className="flex justify-center items-center gap-4 mb-6">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900">
+                {viewMode === 'dashboard' ? '📊 투자 대시보드' : '🖥️ 서비스 모니터'}
+              </h1>
+              
+              {/* 뷰 모드 전환 버튼 */}
+              <div className="flex bg-gray-100 rounded-lg p-1">
+                <Button
+                  variant={viewMode === 'dashboard' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('dashboard')}
+                  className="px-4"
+                >
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  대시보드
+                </Button>
+                <Button
+                  variant={viewMode === 'monitor' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('monitor')}
+                  className="px-4"
+                >
+                  <Terminal className="h-4 w-4 mr-2" />
+                  서비스 모니터
+                </Button>
+              </div>
+            </div>
+            
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              AI 기반 주식 분석으로 스마트한 투자 결정을 내리세요
+              {viewMode === 'dashboard' 
+                ? 'AI 기반 주식 분석으로 스마트한 투자 결정을 내리세요'
+                : '실시간 마이크로서비스 상태를 모니터링하고 관리하세요'
+              }
             </p>
           </div>
 
@@ -169,10 +201,16 @@ const Dashboard = () => {
       {/* 메인 콘텐츠 */}
       <section className="py-12">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* 왼쪽 컬럼: 빠른 실행 & 포트폴리오 */}
-            <div className="lg:col-span-1 space-y-6">
+          {viewMode === 'monitor' ? (
+            // 서비스 모니터 뷰
+            <ServiceMonitor />
+          ) : (
+            // 기존 대시보드 뷰
+            <div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              
+              {/* 왼쪽 컬럼: 빠른 실행 & 포트폴리오 */}
+              <div className="lg:col-span-1 space-y-6">
               
               {/* 빠른 분석 실행 */}
               <Card>
@@ -314,13 +352,15 @@ const Dashboard = () => {
                   />
                 </CardContent>
               </Card>
+              </div>
             </div>
-          </div>
 
-          {/* 개발 예정 기능들 */}
-          <DevelopmentFeatures />
-        </div>
-      </section>
+            {/* 개발 예정 기능들 */}
+            <DevelopmentFeatures />
+          </div>
+        )}
+      </div>
+    </section>
 
       <Footer />
     </div>

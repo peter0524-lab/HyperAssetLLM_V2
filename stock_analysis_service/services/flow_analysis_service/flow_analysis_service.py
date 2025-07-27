@@ -32,6 +32,7 @@ from shared.apis.pykrx_api import pykrx_client
 from shared.apis.telegram_api import TelegramBotClient
 from config.env_local import get_config
 from shared.user_config.user_config_manager import user_config_manager
+from shared.service_config.user_config_loader import get_config_loader
 
 # FastAPI 추가
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
@@ -48,8 +49,12 @@ class FlowAnalysisService:
         
         # 사용자 설정 관리자 초기화
         self.user_config_manager = user_config_manager
-        self.current_user_id = "1"  # 기본 사용자 ID
+        self.current_user_id = os.environ.get('HYPERASSET_USER_ID', "1")  # 🔥 환경변수에서 사용자 ID 읽기
         self.stocks_config = {}  # 사용자별 종목 설정 (MySQL에서 덮어쓰기)
+        
+        # 사용자별 개인화 설정 로더
+        self.user_config_loader = None  # 비동기로 초기화됨
+        self.personalized_configs = {}  # 사용자별 개인화 설정 캐시
         
         self.mysql_client = get_mysql_client()
         self.llm_manager = llm_manager
@@ -1046,6 +1051,102 @@ async def force_eod():
         return {"success": True, "result": result}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+    # === 사용자별 개인화 기능 ===
+    
+    async def initialize_user_personalization(self):
+        """사용자 개인화 설정 초기화"""
+        try:
+            self.user_config_loader = await get_config_loader()
+            self.logger.info("✅ 사용자 개인화 로더 초기화 완료")
+        except Exception as e:
+            self.logger.error(f"❌ 사용자 개인화 로더 초기화 실패: {e}")
+            self.user_config_loader = None
+
+    async def get_personalized_config(self, user_id: str) -> Dict[str, Any]:
+        """사용자별 개인화 설정 조회"""
+        try:
+            if not self.user_config_loader:
+                self.logger.warning("⚠️ 사용자 설정 로더가 초기화되지 않음 - 기본값 사용")
+                return self._get_default_config()
+            
+            # 캐시에서 먼저 확인
+            if user_id in self.personalized_configs:
+                return self.personalized_configs[user_id]
+            
+            # API를 통해 사용자 설정 로드
+            config = await self.user_config_loader.load_user_config(user_id)
+            if config:
+                # 수급 분석 서비스에 특화된 설정 추출
+                personalized_config = {
+                    "user_id": user_id,
+                    "stocks": [stock["stock_code"] for stock in config.get("stocks", [])],
+                    "model_type": config.get("model_type", "hyperclova"),
+                    "active_service": config.get("active_services", {}).get("flow_service", 0) == 1
+                }
+                
+                # 캐시에 저장
+                self.personalized_configs[user_id] = personalized_config
+                self.logger.info(f"✅ 사용자 개인화 설정 로드 완료: {user_id}")
+                return personalized_config
+            else:
+                self.logger.warning(f"⚠️ 사용자 설정을 찾을 수 없음: {user_id} - 기본값 사용")
+                return self._get_default_config()
+                
+        except Exception as e:
+            self.logger.error(f"❌ 사용자 개인화 설정 로드 실패: {user_id} - {e}")
+            return self._get_default_config()
+
+    def _get_default_config(self) -> Dict[str, Any]:
+        """기본 설정 반환"""
+        return {
+            "user_id": "default",
+            "stocks": ["005930", "000660"],  # 기본 종목: 삼성전자, SK하이닉스
+            "model_type": "hyperclova",
+            "active_service": True
+        }
+
+    async def should_analyze_for_user(self, user_id: str, stock_code: str) -> bool:
+        """특정 사용자에 대해 해당 종목을 분석해야 하는지 확인"""
+        try:
+            config = await self.get_personalized_config(user_id)
+            
+            # 서비스가 비활성화된 경우
+            if not config.get("active_service", True):
+                return False
+            
+            # 사용자가 선택한 종목에 포함되지 않은 경우
+            user_stocks = config.get("stocks", [])
+            if stock_code not in user_stocks:
+                return False
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"❌ 사용자별 분석 필요성 확인 실패: {user_id}, {stock_code} - {e}")
+            return True  # 오류 시 기본적으로 분석 진행
+
+    async def get_user_analysis_model(self, user_id: str) -> str:
+        """사용자가 선택한 AI 모델 반환"""
+        try:
+            config = await self.get_personalized_config(user_id)
+            return config.get("model_type", "hyperclova")
+        except Exception as e:
+            self.logger.error(f"❌ 사용자 AI 모델 조회 실패: {user_id} - {e}")
+            return "hyperclova"
+
+    def clear_user_cache(self, user_id: Optional[str] = None):
+        """사용자 설정 캐시 클리어"""
+        if user_id:
+            self.personalized_configs.pop(user_id, None)
+            if self.user_config_loader:
+                self.user_config_loader.clear_cache(user_id)
+            self.logger.debug(f"🧹 사용자 설정 캐시 클리어: {user_id}")
+        else:
+            self.personalized_configs.clear()
+            if self.user_config_loader:
+                self.user_config_loader.clear_cache()
+            self.logger.debug("🧹 모든 사용자 설정 캐시 클리어")
 
 # === 메인 실행 ===
 

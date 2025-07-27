@@ -19,6 +19,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum
 import sys
+import os
 
 # FastAPI 및 관련 패키지
 from fastapi import FastAPI, HTTPException, Request, Response, BackgroundTasks
@@ -67,6 +68,9 @@ from env_local import get_config
 
 # User Config Manager 추가
 from shared.user_config.user_config_manager import user_config_manager
+
+# Service Manager 추가
+from service_manager import ServiceManager
 
 # 구조화된 로깅 설정
 structlog.configure(
@@ -148,6 +152,9 @@ app = FastAPI(
     description="고성능 주식 분석 시스템 API Gateway",
     version="2.0.0"
 )
+
+# Service Manager 인스턴스 생성
+service_manager = ServiceManager()
 
 # CORS 설정 (개발 모드 - 모든 요청 허용)
 app.add_middleware(
@@ -903,11 +910,42 @@ async def user_health():
     """사용자 서비스 헬스체크"""
     return {"status": "healthy", "service": "User Config Manager", "timestamp": datetime.now().isoformat()}
 
+@app.post("/users/profile")
+async def create_user_profile(request: Request):
+    """사용자 프로필 생성 (User Service로 프록시)"""
+    try:
+        data = await request.json()
+        return await gateway.forward_request("user", "POST", "/users/profile", data=data, use_cache=False)
+    except Exception as e:
+        logger.error(f"❌ 사용자 프로필 생성 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"프로필 생성 실패: {str(e)}")
+
+@app.get("/users/{user_id}/config")
+async def get_user_comprehensive_config(user_id: str):
+    """사용자 종합 설정 조회 (서비스 개인화용 - User Service로 프록시)"""
+    try:
+        return await gateway.forward_request("user", "GET", f"/users/{user_id}/config", use_cache=True)
+    except Exception as e:
+        logger.error(f"❌ 사용자 종합 설정 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"사용자 설정 조회 실패: {str(e)}")
+
 @app.get("/api/user/config/{user_id}")
 async def get_user_config(user_id: str):
-    """사용자 전체 설정 조회 (중앙 집중식)"""
+    """사용자 전체 설정 조회 (중앙 집중식) - user_id 또는 phone_number 지원"""
     try:
-        config = await user_config_manager.get_user_config(user_id)
+        # phone_number 형식인지 확인 (010으로 시작하는 11자리 숫자)
+        if user_id.startswith('010') and len(user_id) == 11 and user_id.isdigit():
+            # phone_number로 user_id 찾기
+            actual_user_id = await _get_user_id_by_phone(user_id)
+            if actual_user_id:
+                config = await user_config_manager.get_user_config(actual_user_id)
+            else:
+                # 해당 phone_number의 사용자가 없으면 기본값 반환
+                config = user_config_manager._get_default_config()
+        else:
+            # 기존 user_id로 조회
+            config = await user_config_manager.get_user_config(user_id)
+        
         return {
             "success": True,
             "data": config,
@@ -916,6 +954,22 @@ async def get_user_config(user_id: str):
     except Exception as e:
         logger.error(f"❌ 사용자 설정 조회 실패: {e}")
         raise HTTPException(status_code=500, detail=f"사용자 설정 조회 실패: {str(e)}")
+
+async def _get_user_id_by_phone(phone_number: str) -> Optional[int]:
+    """전화번호로 user_id 조회"""
+    try:
+        from shared.database.mysql_client import MySQLClient
+        mysql_client = MySQLClient()
+        
+        query = "SELECT user_id FROM user_profiles WHERE phone_number = %s"
+        result = await mysql_client.execute_query_async(query, (phone_number,), fetch=True)
+        
+        if result:
+            return result[0]["user_id"]
+        return None
+    except Exception as e:
+        logger.error(f"❌ 전화번호로 user_id 조회 실패: {e}")
+        return None
 
 @app.post("/api/user/config/{user_id}")
 async def update_user_config_centralized(user_id: str, request: Request):
@@ -1044,6 +1098,136 @@ async def update_user_thresholds(user_id: str, request: Request):
     except Exception as e:
         logger.error(f"❌ 사용자 임계값 설정 실패: {e}")
         raise HTTPException(status_code=500, detail=f"사용자 임계값 설정 실패: {str(e)}")
+
+# === 사용자 원하는 서비스 관리 ===
+@app.post("/api/user/wanted-services/{user_id}")
+async def create_user_wanted_services(user_id: str, request: Request):
+    """사용자 원하는 서비스 설정 생성"""
+    try:
+        data = await request.json()
+        return await gateway.forward_request("user", "POST", f"/users/{user_id}/wanted-services", data=data, use_cache=False)
+    except Exception as e:
+        logger.error(f"❌ 사용자 원하는 서비스 설정 생성 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"서비스 설정 생성 실패: {str(e)}")
+
+@app.get("/api/user/wanted-services/{user_id}")
+async def get_user_wanted_services(user_id: str):
+    """사용자 원하는 서비스 설정 조회"""
+    try:
+        return await gateway.forward_request("user", "GET", f"/users/{user_id}/wanted-services", use_cache=True, cache_ttl=300)
+    except Exception as e:
+        logger.error(f"❌ 사용자 원하는 서비스 설정 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"서비스 설정 조회 실패: {str(e)}")
+
+@app.put("/api/user/wanted-services/{user_id}")
+async def update_user_wanted_services(user_id: str, request: Request):
+    """사용자 원하는 서비스 설정 수정"""
+    try:
+        data = await request.json()
+        result = await gateway.forward_request("user", "PUT", f"/users/{user_id}/wanted-services", data=data, use_cache=False)
+        
+        # 캐시 무효화
+        cache_key = f"user_wanted_services_{user_id}"
+        if hasattr(gateway, 'cache') and gateway.cache:
+            gateway.cache.pop(cache_key, None)
+        
+        return result
+    except Exception as e:
+        logger.error(f"❌ 사용자 원하는 서비스 설정 수정 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"서비스 설정 수정 실패: {str(e)}")
+
+# === 서비스 활성화 관리 ===
+@app.post("/api/services/activate")
+async def activate_selected_services(request: Request):
+    """선택된 서비스들 활성화"""
+    try:
+        data = await request.json()
+        user_id = data.get('user_id')
+        services = data.get('services', [])
+        
+        if not user_id or not services:
+            raise HTTPException(status_code=400, detail="user_id와 services가 필요합니다")
+        
+        # 서비스 매니저를 통해 서비스 활성화
+        from pathlib import Path
+        import subprocess
+        import sys
+        
+        service_manager_path = Path(__file__).parent.parent.parent / "service_manager.py"
+        service_list = ','.join(services)
+        
+        # 백그라운드에서 서비스 시작
+        process = subprocess.Popen([
+            sys.executable, str(service_manager_path), 
+            "start-services", service_list
+        ], cwd=str(service_manager_path.parent))
+        
+        return {
+            "success": True,
+            "message": f"서비스 활성화 시작: {services}",
+            "data": {
+                "user_id": user_id,
+                "services": services,
+                "process_id": process.pid
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ 서비스 활성화 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"서비스 활성화 실패: {str(e)}")
+
+@app.get("/api/services/status")
+async def get_services_status():
+    """모든 서비스 상태 조회"""
+    try:
+        status = service_manager.get_service_status()
+        return {
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "services": status
+        }
+    except Exception as e:
+        logger.error(f"Failed to get services status: {e}")
+        raise HTTPException(status_code=500, detail=f"Status retrieval failed: {str(e)}")
+
+@app.post("/api/services/start-core")
+async def start_core_services():
+    """핵심 서비스들(user_service, api_gateway) 시작"""
+    try:
+        from pathlib import Path  
+        import subprocess
+        import json
+        
+        service_manager_path = Path(__file__).parent.parent.parent / "service_manager.py"
+        
+        # 핵심 서비스 시작
+        result = subprocess.run([
+            sys.executable, str(service_manager_path), "start-core"
+        ], cwd=str(service_manager_path.parent), capture_output=True, text=True, timeout=30)
+        
+        if result.returncode == 0:
+            return {
+                "success": True,
+                "message": "핵심 서비스 시작 완료",
+                "data": {"stdout": result.stdout, "stderr": result.stderr}
+            }
+        else:
+            raise Exception(f"핵심 서비스 시작 실패: {result.stderr}")
+        
+    except subprocess.TimeoutExpired:
+        logger.error("❌ 핵심 서비스 시작 시간 초과")
+        return {
+            "success": False,
+            "message": "서비스 시작 시간이 초과되었습니다",
+            "data": {}
+        }
+    except Exception as e:
+        logger.error(f"❌ 핵심 서비스 시작 실패: {e}")
+        return {
+            "success": False,
+            "message": f"핵심 서비스 시작 실패: {str(e)}",
+            "data": {}
+        }
 
 # === 기존 User Service 라우팅 (백업용) ===
 @app.put("/api/user/config/{user_id}")
@@ -1386,6 +1570,130 @@ def main():
     except Exception as e:
         logger.error(f"API Gateway 실행 실패: {e}")
         raise
+
+# ==========================================
+# 🚀 서비스 관리 API 엔드포인트들
+# ==========================================
+
+@app.post("/api/services/start-selected")
+async def start_selected_services(request_data: Dict[str, Any]):
+    """선택된 서비스들 시작"""
+    try:
+        service_list = request_data.get("services", [])
+        user_id = request_data.get("user_id", None)  # 🔥 사용자 ID 받기
+        
+        logger.info(f"Starting selected services: {service_list} for user: {user_id}")
+        
+        success = service_manager.start_selected_services(service_list, user_id)
+        
+        if success:
+            status = service_manager.get_service_status()
+            return {
+                "success": True,
+                "message": f"Selected services started: {service_list} for user: {user_id}",
+                "services": status
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Failed to start some services. Check logs for details.",
+                "services": service_manager.get_service_status()
+            }
+    except Exception as e:
+        logger.error(f"❌ Error starting selected services: {e}")
+        raise HTTPException(status_code=500, detail=f"Service start failed: {str(e)}")
+
+@app.post("/api/services/start-core")
+async def start_core_services():
+    """핵심 서비스들 시작 (API Gateway, User Service)"""
+    try:
+        logger.info("Starting core services...")
+        success = service_manager.start_core_services()
+        
+        if success:
+            status = service_manager.get_service_status()
+            return {
+                "success": True,
+                "message": "Core services started successfully",
+                "services": status
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Failed to start core services",
+                "services": service_manager.get_service_status()
+            }
+    except Exception as e:
+        logger.error(f"Failed to start core services: {e}")
+        raise HTTPException(status_code=500, detail=f"Core service start failed: {str(e)}")
+
+@app.post("/api/services/{service_name}/start")
+async def start_single_service(service_name: str):
+    """개별 서비스 시작"""
+    try:
+        logger.info(f"Starting service: {service_name}")
+        success = service_manager.start_service(service_name)
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"Service {service_name} started successfully",
+                "service": service_manager.get_service_status().get(service_name, {})
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"Failed to start service {service_name}",
+                "service": service_manager.get_service_status().get(service_name, {})
+            }
+    except Exception as e:
+        logger.error(f"Failed to start service {service_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Service start failed: {str(e)}")
+
+@app.post("/api/services/{service_name}/stop")
+async def stop_single_service(service_name: str):
+    """개별 서비스 중지"""
+    try:
+        logger.info(f"Stopping service: {service_name}")
+        success = service_manager.stop_service(service_name)
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"Service {service_name} stopped successfully",
+                "service": service_manager.get_service_status().get(service_name, {})
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"Failed to stop service {service_name}",
+                "service": service_manager.get_service_status().get(service_name, {})
+            }
+    except Exception as e:
+        logger.error(f"Failed to stop service {service_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Service stop failed: {str(e)}")
+
+@app.get("/api/services/{service_name}/status")
+async def get_single_service_status(service_name: str):
+    """개별 서비스 상태 조회"""
+    try:
+        all_status = service_manager.get_service_status()
+        service_status = all_status.get(service_name)
+        
+        if service_status is None:
+            raise HTTPException(status_code=404, detail=f"Service {service_name} not found")
+        
+        return {
+            "success": True,
+            "service_name": service_name,
+            "status": service_status,
+            "timestamp": datetime.now().isoformat()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get status for service {service_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Status retrieval failed: {str(e)}")
 
 if __name__ == "__main__":
     main()

@@ -20,7 +20,8 @@ from shared.database.mysql_client import MySQLClient
 from shared.user_config.user_config_manager import user_config_manager
 from user_models import (
     UserProfileCreate, UserProfileUpdate, UserStockCreate, UserStockUpdate,
-    UserModelCreate, UserConfigResponse, ApiResponse, ModelType
+    UserModelCreate, UserConfigResponse, ApiResponse, ModelType,
+    UserWantedServiceCreate, UserWantedServiceUpdate, UserWantedServiceResponse
 )
 
 # FastAPI 앱 생성
@@ -437,6 +438,273 @@ async def get_user_config(user_id: str):
         
     except Exception as e:
         logger.error(f"❌ 사용자 설정 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail="사용자 설정 조회에 실패했습니다")
+
+# === 사용자 원하는 서비스 관리 API ===
+
+@app.post("/users/{user_id}/wanted-services", response_model=ApiResponse)
+async def create_user_wanted_services(
+    user_id: str,
+    services: UserWantedServiceCreate,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """사용자 원하는 서비스 설정 생성"""
+    try:
+        # 사용자 존재 확인
+        user_check = "SELECT user_id, phone_number FROM user_profiles WHERE user_id = %s"
+        user_result = await db.fetch_one_async(user_check, (user_id,))
+        
+        if not user_result:
+            raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다")
+        
+        phone_number = user_result['phone_number']
+        
+        # 기존 설정 확인
+        check_query = "SELECT user_id FROM user_wanted_service WHERE user_id = %s"
+        existing = await db.fetch_one_async(check_query, (user_id,))
+        
+        if existing:
+            # 기존 설정 업데이트
+            update_query = """
+                UPDATE user_wanted_service 
+                SET phone_number = %s, news_service = %s, disclosure_service = %s,
+                    report_service = %s, chart_service = %s, flow_service = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s
+            """
+            await db.execute_query_async(update_query, (
+                phone_number,
+                int(services.news_service),
+                int(services.disclosure_service), 
+                int(services.report_service),
+                int(services.chart_service),
+                int(services.flow_service),
+                user_id
+            ))
+        else:
+            # 새 설정 생성
+            insert_query = """
+                INSERT INTO user_wanted_service 
+                (user_id, phone_number, news_service, disclosure_service, 
+                 report_service, chart_service, flow_service)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            await db.execute_query_async(insert_query, (
+                user_id,
+                phone_number,
+                int(services.news_service),
+                int(services.disclosure_service),
+                int(services.report_service),
+                int(services.chart_service),
+                int(services.flow_service)
+            ))
+        
+        logger.info(f"✅ 사용자 원하는 서비스 설정 완료: {user_id}")
+        
+        return ApiResponse(
+            success=True,
+            message="서비스 설정이 성공적으로 저장되었습니다",
+            data={
+                "user_id": user_id,
+                "services": services.dict()
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 사용자 원하는 서비스 설정 실패: {e}")
+        raise HTTPException(status_code=500, detail="서비스 설정에 실패했습니다")
+
+@app.get("/users/{user_id}/wanted-services", response_model=ApiResponse)
+async def get_user_wanted_services(
+    user_id: str,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """사용자 원하는 서비스 설정 조회"""
+    try:
+        query = """
+            SELECT user_id, phone_number, news_service, disclosure_service,
+                   report_service, chart_service, flow_service, 
+                   created_at, updated_at
+            FROM user_wanted_service 
+            WHERE user_id = %s
+        """
+        result = await db.fetch_one_async(query, (user_id,))
+        
+        if not result:
+            # 기본값 반환
+            return ApiResponse(
+                success=True,
+                message="기본 서비스 설정을 반환합니다",
+                data={
+                    "user_id": user_id,
+                    "phone_number": None,
+                    "news_service": False,
+                    "disclosure_service": False,
+                    "report_service": False,
+                    "chart_service": False,
+                    "flow_service": False,
+                    "created_at": None,
+                    "updated_at": None
+                }
+            )
+        
+        return ApiResponse(
+            success=True,
+            message="사용자 원하는 서비스 설정 조회 완료",
+            data={
+                "user_id": result['user_id'],
+                "phone_number": result['phone_number'],
+                "news_service": bool(result['news_service']),
+                "disclosure_service": bool(result['disclosure_service']),
+                "report_service": bool(result['report_service']),
+                "chart_service": bool(result['chart_service']),
+                "flow_service": bool(result['flow_service']),
+                "created_at": result['created_at'].isoformat() if result['created_at'] else None,
+                "updated_at": result['updated_at'].isoformat() if result['updated_at'] else None
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ 사용자 원하는 서비스 설정 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail="서비스 설정 조회에 실패했습니다")
+
+@app.put("/users/{user_id}/wanted-services", response_model=ApiResponse)
+async def update_user_wanted_services(
+    user_id: str,
+    services: UserWantedServiceUpdate,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """사용자 원하는 서비스 설정 수정"""
+    try:
+        # 기존 설정 확인
+        check_query = "SELECT user_id FROM user_wanted_service WHERE user_id = %s"
+        existing = await db.fetch_one_async(check_query, (user_id,))
+        
+        if not existing:
+            raise HTTPException(status_code=404, detail="서비스 설정을 찾을 수 없습니다")
+        
+        # 업데이트할 필드들 준비
+        update_fields = []
+        values = []
+        
+        if services.news_service is not None:
+            update_fields.append("news_service = %s")
+            values.append(int(services.news_service))
+        
+        if services.disclosure_service is not None:
+            update_fields.append("disclosure_service = %s")
+            values.append(int(services.disclosure_service))
+        
+        if services.report_service is not None:
+            update_fields.append("report_service = %s")
+            values.append(int(services.report_service))
+        
+        if services.chart_service is not None:
+            update_fields.append("chart_service = %s")
+            values.append(int(services.chart_service))
+        
+        if services.flow_service is not None:
+            update_fields.append("flow_service = %s")
+            values.append(int(services.flow_service))
+        
+        if not update_fields:
+            raise HTTPException(status_code=400, detail="수정할 항목이 없습니다")
+        
+        # 업데이트 쿼리 실행
+        update_fields.append("updated_at = CURRENT_TIMESTAMP")
+        values.append(user_id)
+        
+        update_query = f"""
+            UPDATE user_wanted_service 
+            SET {', '.join(update_fields)}
+            WHERE user_id = %s
+        """
+        
+        await db.execute_query_async(update_query, tuple(values))
+        
+        logger.info(f"✅ 사용자 원하는 서비스 설정 수정 완료: {user_id}")
+        
+        return ApiResponse(
+            success=True,
+            message="서비스 설정이 성공적으로 수정되었습니다"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 사용자 원하는 서비스 설정 수정 실패: {e}")
+        raise HTTPException(status_code=500, detail="서비스 설정 수정에 실패했습니다")
+
+# === 사용자 종합 설정 조회 API ===
+
+@app.get("/users/{user_id}/config", response_model=ApiResponse)
+async def get_user_config(
+    user_id: str,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """사용자 종합 설정 조회 (서비스 개인화용)"""
+    try:
+        # 1. 사용자 프로필 조회
+        profile_query = """
+        SELECT user_id, username, phone_number, news_similarity_threshold, news_impact_threshold
+        FROM user_profiles WHERE user_id = %s
+        """
+        profile_result = await db.execute_query_async(profile_query, (user_id,), fetch=True)
+        
+        if not profile_result:
+            raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다")
+        
+        profile = profile_result[0]
+        
+        # 2. 사용자 종목 조회
+        stocks_query = """
+        SELECT stock_code, stock_name, enabled
+        FROM user_stocks WHERE user_id = %s AND enabled = 1
+        """
+        stocks_result = await db.execute_query_async(stocks_query, (user_id,), fetch=True)
+        stocks = [dict(row) for row in stocks_result] if stocks_result else []
+        
+        # 3. 사용자 모델 조회
+        model_query = "SELECT model_type FROM user_model WHERE user_id = %s"
+        model_result = await db.execute_query_async(model_query, (user_id,), fetch=True)
+        model_type = model_result[0]['model_type'] if model_result else 'hyperclova'
+        
+        # 4. 활성화된 서비스 조회
+        services_query = """
+        SELECT news_service, disclosure_service, report_service, chart_service, flow_service
+        FROM user_wanted_service WHERE user_id = %s
+        """
+        services_result = await db.execute_query_async(services_query, (user_id,), fetch=True)
+        services = dict(services_result[0]) if services_result else {
+            'news_service': 0,
+            'disclosure_service': 0,
+            'report_service': 0,
+            'chart_service': 0,
+            'flow_service': 0
+        }
+        
+        # 5. 종합 설정 구성
+        user_config = {
+            **dict(profile),
+            'stocks': stocks,
+            'model_type': model_type,
+            'active_services': services
+        }
+        
+        logger.info(f"✅ 사용자 종합 설정 조회 완료: {user_id}")
+        
+        return ApiResponse(
+            success=True,
+            message="사용자 종합 설정 조회 완료",
+            data=user_config
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 사용자 종합 설정 조회 실패: {e}")
         raise HTTPException(status_code=500, detail="사용자 설정 조회에 실패했습니다")
 
 @app.get("/health")

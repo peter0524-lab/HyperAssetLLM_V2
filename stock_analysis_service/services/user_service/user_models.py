@@ -90,6 +90,49 @@ class UserConfigResponse(BaseModel):
             }
         }
 
+class UserWantedServiceCreate(BaseModel):
+    """사용자 원하는 서비스 설정 모델"""
+    news_service: bool = Field(default=False, description="뉴스 서비스 활성화")
+    disclosure_service: bool = Field(default=False, description="공시 서비스 활성화")
+    report_service: bool = Field(default=False, description="리포트 서비스 활성화")
+    chart_service: bool = Field(default=False, description="차트 서비스 활성화")
+    flow_service: bool = Field(default=False, description="자금흐름 서비스 활성화")
+
+class UserWantedServiceUpdate(BaseModel):
+    """사용자 원하는 서비스 수정 모델"""
+    news_service: Optional[bool] = None
+    disclosure_service: Optional[bool] = None
+    report_service: Optional[bool] = None
+    chart_service: Optional[bool] = None
+    flow_service: Optional[bool] = None
+
+class UserWantedServiceResponse(BaseModel):
+    """사용자 원하는 서비스 응답 모델"""
+    user_id: str
+    phone_number: str
+    news_service: bool
+    disclosure_service: bool
+    report_service: bool
+    chart_service: bool
+    flow_service: bool
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "user_id": "01012345678",
+                "phone_number": "01012345678",
+                "news_service": True,
+                "disclosure_service": False,
+                "report_service": True,
+                "chart_service": False,
+                "flow_service": True,
+                "created_at": "2025-01-27T10:00:00",
+                "updated_at": "2025-01-27T10:00:00"
+            }
+        }
+
 class ApiResponse(BaseModel):
     """API 응답 공통 모델"""
     success: bool

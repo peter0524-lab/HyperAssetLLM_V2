@@ -99,9 +99,9 @@ const ModelSelection = () => {
       toast.success("🎉 AI 모델 설정이 완료되었습니다!");
       queryClient.invalidateQueries({ queryKey: ['userConfig', userId] });
       
-      // 대시보드로 이동
+      // 서비스 활성화 페이지로 이동
       setTimeout(() => {
-        navigate('/dashboard');
+        navigate('/service-activation');
       }, 1500);
     },
     onError: (error) => {

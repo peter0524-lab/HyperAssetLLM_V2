@@ -1,10 +1,75 @@
-import React from "react";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Mail, Github, Linkedin, User, GraduationCap, Brain, Database } from "lucide-react";
+import { Mail, Github, Linkedin, User, GraduationCap, Brain, Database, Loader2, Server, CheckCircle, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
 
 const Contact = () => {
+  const navigate = useNavigate();
+  const [isStartingServices, setIsStartingServices] = useState(false);
+  const [startupPhase, setStartupPhase] = useState<'starting' | 'checking' | 'complete' | 'error'>('starting');
+
+  // 서비스 시작 함수 (Hero.tsx와 동일)
+  const handleStartDashboard = async () => {
+    setIsStartingServices(true);
+    setStartupPhase('starting');
+
+    try {
+      // 1단계: 핵심 서비스 시작 시도
+      toast.info("🚀 서비스를 시작하고 있습니다...");
+      
+      // 2단계: 서비스 상태 확인 (폴링)
+      setStartupPhase('checking');
+      let attempts = 0;
+      const maxAttempts = 30; // 30초 제한
+      
+      while (attempts < maxAttempts) {
+        try {
+          const statusResponse = await api.getServicesStatus();
+          
+          if (statusResponse.success && statusResponse.data) {
+            const services = statusResponse.data;
+            const userServiceRunning = services.user_service?.is_running;
+            const apiGatewayRunning = services.api_gateway?.is_running;
+            
+            if (userServiceRunning && apiGatewayRunning) {
+              // 서비스 시작 완료
+              setStartupPhase('complete');
+              toast.success("✅ 서비스가 성공적으로 시작되었습니다!");
+              
+              // 잠시 대기 후 인증 페이지로 이동
+              setTimeout(() => {
+                setIsStartingServices(false);
+                navigate('/auth');
+              }, 1500);
+              return;
+            }
+          }
+        } catch (error) {
+          console.log(`서비스 상태 확인 시도 ${attempts + 1}: 대기 중...`);
+        }
+        
+        attempts++;
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기
+      }
+      
+      // 시간 초과
+      throw new Error('서비스 시작 시간이 초과되었습니다');
+      
+    } catch (error) {
+      console.error('서비스 시작 실패:', error);
+      setStartupPhase('error');
+      toast.error("❌ 서비스 시작에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      
+      setTimeout(() => {
+        setIsStartingServices(false);
+      }, 3000);
+    }
+  };
+
   const teamMembers = [
     {
       name: "이태환",
@@ -144,10 +209,18 @@ const Contact = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button 
-                onClick={() => window.location.href = '/auth'}
-                className="px-8 py-4 bg-white text-blue-600 font-semibold rounded-lg hover:bg-gray-50 transition-colors duration-200 hover:scale-105 transform"
+                onClick={handleStartDashboard}
+                disabled={isStartingServices}
+                className="px-8 py-4 bg-white text-blue-600 font-semibold rounded-lg hover:bg-gray-50 transition-colors duration-200 hover:scale-105 transform disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center"
               >
-                대시보드 시작하기
+                {isStartingServices ? (
+                  <>
+                    <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+                    서비스 시작 중...
+                  </>
+                ) : (
+                  '대시보드 시작하기'
+                )}
               </button>
               <button 
                 onClick={() => window.location.href = '/'}
@@ -189,6 +262,64 @@ const Contact = () => {
           }
         `
       }} />
+
+      {/* 서비스 시작 로딩 모달 */}
+      {isStartingServices && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+            <div className="text-center">
+              <div className="mb-6">
+                {startupPhase === 'starting' && (
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+                    <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+                  </div>
+                )}
+                {startupPhase === 'checking' && (
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4">
+                    <Server className="h-8 w-8 text-orange-600 animate-pulse" />
+                  </div>
+                )}
+                {startupPhase === 'complete' && (
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+                    <CheckCircle className="h-8 w-8 text-green-600" />
+                  </div>
+                )}
+                {startupPhase === 'error' && (
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
+                    <AlertCircle className="h-8 w-8 text-red-600" />
+                  </div>
+                )}
+              </div>
+
+              <h3 className="text-xl font-bold text-gray-900 mb-3">
+                {startupPhase === 'starting' && '🚀 HyperAsset 서비스 시작 중...'}
+                {startupPhase === 'checking' && '🔍 서비스 상태 확인 중...'}
+                {startupPhase === 'complete' && '✅ 서비스 시작 완료!'}
+                {startupPhase === 'error' && '❌ 서비스 시작 실패'}
+              </h3>
+
+              <p className="text-gray-600 mb-6">
+                {startupPhase === 'starting' && '백엔드 서비스를 준비하고 있습니다. 잠시만 기다려주세요.'}
+                {startupPhase === 'checking' && '서비스들이 정상적으로 실행되었는지 확인하고 있습니다.'}
+                {startupPhase === 'complete' && '모든 서비스가 성공적으로 시작되었습니다. 곧 이동합니다.'}
+                {startupPhase === 'error' && '서비스 시작 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.'}
+              </p>
+
+              {(startupPhase === 'starting' || startupPhase === 'checking') && (
+                <div className="flex items-center justify-center space-x-2">
+                  {[0, 1, 2].map((index) => (
+                    <div
+                      key={index}
+                      className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
+                      style={{ animationDelay: `${index * 0.2}s` }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
