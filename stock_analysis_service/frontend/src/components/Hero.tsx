@@ -25,6 +25,14 @@ const Hero = () => {
       // 1단계: 핵심 서비스 시작 시도
       toast.info("🚀 서비스를 시작하고 있습니다...");
       
+      // 🔥 실제로 서버를 시작하는 API 호출 (타임아웃 무시)
+      try {
+        await api.startCoreServices();
+      } catch (error) {
+        console.log("start-core API 호출 실패, 서비스 상태 확인으로 진행:", error);
+        // API 호출 실패해도 계속 진행
+      }
+      
       // 2단계: 서비스 상태 확인 (폴링)
       setStartupPhase('checking');
       let attempts = 0;

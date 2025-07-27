@@ -160,10 +160,9 @@ class ServiceManager:
             logger.info(f"Service {service_name} is already running")
             return True
         
-        # 포트 사용 가능 여부 확인
+        # 🔥 포트가 사용 중이면 이미 실행 중인 것으로 간주
         if not self.is_port_available(service_def['port']):
-            logger.warning(f"Port {service_def['port']} is already in use for {service_name}")
-            # 포트가 사용 중이어도 서비스가 이미 실행 중일 수 있으므로 성공으로 처리
+            logger.info(f"Port {service_def['port']} is in use, service {service_name} may already be running")
             self.update_service_status(service_name, 'running')
             return True
         
@@ -209,8 +208,9 @@ class ServiceManager:
             self.processes[service_name] = process
             self.update_service_status(service_name, 'starting', process.pid)
             
-            # 서비스 시작 확인 (최대 10초 대기)
-            for i in range(10):
+            # 서비스 시작 확인 (뉴스 서비스는 60초, 나머지는 10초 대기)
+            timeout_seconds = 60 if service_name == "news_service" else 10
+            for i in range(timeout_seconds):
                 if not self.is_port_available(service_def['port']):
                     self.update_service_status(service_name, 'running', process.pid)
                     logger.info(f"Service {service_name} started successfully on port {service_def['port']}")
@@ -218,7 +218,7 @@ class ServiceManager:
                 time.sleep(1)
             
             # 시작 실패
-            logger.error(f"Service {service_name} failed to start within 10 seconds")
+            logger.error(f"Service {service_name} failed to start within {timeout_seconds} seconds")
             self.update_service_status(service_name, 'failed')
             return False
             
