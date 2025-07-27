@@ -72,6 +72,37 @@ async def shutdown_event():
 
 # === 사용자 프로필 API ===
 
+@app.get("/users/check", response_model=ApiResponse)
+async def check_user_exists(
+    phone_number: str,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """전화번호로 사용자 존재 여부 확인"""
+    try:
+        check_query = "SELECT user_id, username FROM user_profiles WHERE phone_number = %s"
+        result = await db.execute_query_async(check_query, (phone_number,), fetch=True)
+        
+        if result:
+            user_data = result[0]
+            return ApiResponse(
+                success=True,
+                data={
+                    "exists": True,
+                    "user_id": user_data["user_id"],  # 🔥 딕셔너리 키로 접근
+                    "username": user_data["username"]  # 🔥 딕셔너리 키로 접근
+                },
+                message=f"사용자 확인 완료: {phone_number}"
+            )
+        else:
+            return ApiResponse(
+                success=True,
+                data={"exists": False},
+                message=f"등록되지 않은 전화번호: {phone_number}"
+            )
+    except Exception as e:
+        logger.error(f"❌ 사용자 확인 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"사용자 확인 실패: {str(e)}")
+
 @app.post("/users/profile", response_model=ApiResponse)
 async def create_user_profile(
     profile: UserProfileCreate,
@@ -468,8 +499,7 @@ async def create_user_wanted_services(
             update_query = """
                 UPDATE user_wanted_service 
                 SET phone_number = %s, news_service = %s, disclosure_service = %s,
-                    report_service = %s, chart_service = %s, flow_service = %s,
-                    updated_at = CURRENT_TIMESTAMP
+                    report_service = %s, chart_service = %s, flow_service = %s
                 WHERE user_id = %s
             """
             await db.execute_query_async(update_query, (
@@ -480,7 +510,7 @@ async def create_user_wanted_services(
                 int(services.chart_service),
                 int(services.flow_service),
                 user_id
-            ))
+            ), fetch=False)
         else:
             # 새 설정 생성
             insert_query = """
@@ -497,7 +527,7 @@ async def create_user_wanted_services(
                 int(services.report_service),
                 int(services.chart_service),
                 int(services.flow_service)
-            ))
+            ), fetch=False)
         
         logger.info(f"✅ 사용자 원하는 서비스 설정 완료: {user_id}")
         
@@ -514,7 +544,10 @@ async def create_user_wanted_services(
         raise
     except Exception as e:
         logger.error(f"❌ 사용자 원하는 서비스 설정 실패: {e}")
-        raise HTTPException(status_code=500, detail="서비스 설정에 실패했습니다")
+        logger.error(f"❌ 상세 오류: {type(e).__name__}: {str(e)}")
+        import traceback
+        logger.error(f"❌ 스택 트레이스: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"서비스 설정에 실패했습니다: {str(e)}")
 
 @app.get("/users/{user_id}/wanted-services", response_model=ApiResponse)
 async def get_user_wanted_services(
@@ -525,14 +558,16 @@ async def get_user_wanted_services(
     try:
         query = """
             SELECT user_id, phone_number, news_service, disclosure_service,
-                   report_service, chart_service, flow_service, 
-                   created_at, updated_at
+                   report_service, chart_service, flow_service
             FROM user_wanted_service 
             WHERE user_id = %s
         """
+        logger.info(f"🔍 wanted-services 조회 쿼리 실행: {user_id}")
         result = await db.fetch_one_async(query, (user_id,))
+        logger.info(f"🔍 쿼리 결과: {result}")
         
         if not result:
+            logger.info(f"⚠️ 사용자 {user_id}의 wanted-services 설정이 없음, 기본값 반환")
             # 기본값 반환
             return ApiResponse(
                 success=True,
@@ -544,9 +579,7 @@ async def get_user_wanted_services(
                     "disclosure_service": False,
                     "report_service": False,
                     "chart_service": False,
-                    "flow_service": False,
-                    "created_at": None,
-                    "updated_at": None
+                    "flow_service": False
                 }
             )
         
@@ -560,9 +593,7 @@ async def get_user_wanted_services(
                 "disclosure_service": bool(result['disclosure_service']),
                 "report_service": bool(result['report_service']),
                 "chart_service": bool(result['chart_service']),
-                "flow_service": bool(result['flow_service']),
-                "created_at": result['created_at'].isoformat() if result['created_at'] else None,
-                "updated_at": result['updated_at'].isoformat() if result['updated_at'] else None
+                "flow_service": bool(result['flow_service'])
             }
         )
         

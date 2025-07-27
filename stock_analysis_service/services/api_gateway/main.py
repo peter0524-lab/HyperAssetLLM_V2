@@ -13,6 +13,7 @@ import json
 import logging
 import time
 import hashlib
+import httpx
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from pathlib import Path
@@ -910,15 +911,34 @@ async def user_health():
     """사용자 서비스 헬스체크"""
     return {"status": "healthy", "service": "User Config Manager", "timestamp": datetime.now().isoformat()}
 
+# 🔥 프론트엔드 일관성을 위한 /api/user/check-user 엔드포인트 추가
+@app.get("/api/user/check-user")
+async def check_user_exists_api(phone_number: str):
+    """사용자 존재 여부 확인 (API 일관성을 위한 /api/user/check-user 엔드포인트)"""
+    try:
+        return await gateway.forward_request("user", "GET", f"/users/check?phone_number={phone_number}", use_cache=True)
+    except Exception as e:
+        logger.error(f"❌ 사용자 확인 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"사용자 확인 실패: {str(e)}")
+
 # 🔥 프론트엔드 일관성을 위한 /api/user/profile 엔드포인트 추가
 @app.post("/api/user/profile")
 async def create_user_profile_api(request: Request):
     """사용자 프로필 생성 (API 일관성을 위한 /api/user/profile 엔드포인트)"""
     try:
         data = await request.json()
-        return await gateway.forward_request("user", "POST", "/users/profile", data=data, use_cache=False)
+        logger.info(f"🔄 프로필 생성 요청 데이터: {data}")
+        
+        # User Service로 요청 전달
+        result = await gateway.forward_request("user", "POST", "/users/profile", data=data, use_cache=False)
+        logger.info(f"✅ 프로필 생성 성공: {result}")
+        return result
+        
+    except HTTPException as he:
+        logger.error(f"❌ HTTP 예외 - 프로필 생성 실패: {he.detail}")
+        raise he
     except Exception as e:
-        logger.error(f"❌ 사용자 프로필 생성 실패: {e}")
+        logger.error(f"❌ 일반 예외 - 프로필 생성 실패: {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail=f"프로필 생성 실패: {str(e)}")
 
 @app.post("/users/profile")
@@ -1125,7 +1145,7 @@ async def create_user_wanted_services(user_id: str, request: Request):
 async def get_user_wanted_services(user_id: str):
     """사용자 원하는 서비스 설정 조회"""
     try:
-        return await gateway.forward_request("user", "GET", f"/users/{user_id}/wanted-services", use_cache=True, cache_ttl=300)
+        return await gateway.forward_request("user", "GET", f"/users/{user_id}/wanted-services", use_cache=True)
     except Exception as e:
         logger.error(f"❌ 사용자 원하는 서비스 설정 조회 실패: {e}")
         raise HTTPException(status_code=500, detail=f"서비스 설정 조회 실패: {str(e)}")
@@ -1641,123 +1661,69 @@ def main():
 
 @app.post("/api/services/start-selected")
 async def start_selected_services(request_data: Dict[str, Any]):
-    """선택된 서비스들 시작"""
+    """선택된 서비스들 시작 - Orchestrator 기반"""
     try:
-        service_list = request_data.get("services", [])
-        user_id = request_data.get("user_id", None)  # 🔥 사용자 ID 받기
+        user_id = request_data.get("user_id", None)
         
-        logger.info(f"Starting selected services: {service_list} for user: {user_id}")
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
         
-        success = service_manager.start_selected_services(service_list, user_id)
+        logger.info(f"🚀 사용자 {user_id}의 선택된 서비스들 시작")
         
-        if success:
-            status = service_manager.get_service_status()
+        # 🔥 Orchestrator를 통해 사용자별 서비스 시작
+        try:
+            # Orchestrator API 호출
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"http://localhost:8000/user/{user_id}/start",
+                    timeout=120  # 서비스 시작에 시간이 걸릴 수 있음
+                )
+                
+                if response.status_code == 200:
+                    orchestrator_result = response.json()
+                    
+                    # Orchestrator에서 현재 서비스 상태 조회
+                    status_response = await client.get("http://localhost:8000/services")
+                    
+                    if status_response.status_code == 200:
+                        orchestrator_status = status_response.json()
+                        
+                        return {
+                            "success": True,
+                            "message": f"사용자 {user_id}의 서비스 시작 완료",
+                            "orchestrator_message": orchestrator_result.get("message", ""),
+                            "user_id": orchestrator_status.get("user_id"),
+                            "active_services": orchestrator_status.get("active_services", []),
+                            "services": orchestrator_status.get("services", {})
+                        }
+                    else:
+                        return {
+                            "success": True,
+                            "message": f"사용자 {user_id}의 서비스 시작 완료 (상태 조회 실패)",
+                            "orchestrator_message": orchestrator_result.get("message", "")
+                        }
+                else:
+                    logger.error(f"❌ Orchestrator 서비스 시작 실패: {response.status_code} - {response.text}")
+                    return {
+                        "success": False,
+                        "message": f"Orchestrator를 통한 서비스 시작 실패: {response.status_code}",
+                        "error": response.text
+                    }
+                    
+        except httpx.TimeoutException:
+            logger.warning("⏰ Orchestrator 서비스 시작 타임아웃 (백그라운드에서 진행 중일 수 있음)")
             return {
                 "success": True,
-                "message": f"Selected services started: {service_list} for user: {user_id}",
-                "services": status
+                "message": f"사용자 {user_id}의 서비스 시작 요청 완료 (백그라운드 진행 중)",
+                "note": "서비스 시작에 시간이 걸릴 수 있습니다. 잠시 후 상태를 확인해주세요."
             }
-        else:
-            return {
-                "success": False,
-                "message": "Failed to start some services. Check logs for details.",
-                "services": service_manager.get_service_status()
-            }
+        except Exception as e:
+            logger.error(f"❌ Orchestrator 통신 실패: {e}")
+            raise HTTPException(status_code=500, detail=f"Orchestrator 통신 실패: {str(e)}")
+            
     except Exception as e:
-        logger.error(f"❌ Error starting selected services: {e}")
-        raise HTTPException(status_code=500, detail=f"Service start failed: {str(e)}")
-
-@app.post("/api/services/start-core")
-async def start_core_services():
-    """핵심 서비스들 시작 (API Gateway, User Service)"""
-    try:
-        logger.info("Starting core services...")
-        success = service_manager.start_core_services()
-        
-        if success:
-            status = service_manager.get_service_status()
-            return {
-                "success": True,
-                "message": "Core services started successfully",
-                "services": status
-            }
-        else:
-            return {
-                "success": False,
-                "message": "Failed to start core services",
-                "services": service_manager.get_service_status()
-            }
-    except Exception as e:
-        logger.error(f"Failed to start core services: {e}")
-        raise HTTPException(status_code=500, detail=f"Core service start failed: {str(e)}")
-
-@app.post("/api/services/{service_name}/start")
-async def start_single_service(service_name: str):
-    """개별 서비스 시작"""
-    try:
-        logger.info(f"Starting service: {service_name}")
-        success = service_manager.start_service(service_name)
-        
-        if success:
-            return {
-                "success": True,
-                "message": f"Service {service_name} started successfully",
-                "service": service_manager.get_service_status().get(service_name, {})
-            }
-        else:
-            return {
-                "success": False,
-                "message": f"Failed to start service {service_name}",
-                "service": service_manager.get_service_status().get(service_name, {})
-            }
-    except Exception as e:
-        logger.error(f"Failed to start service {service_name}: {e}")
-        raise HTTPException(status_code=500, detail=f"Service start failed: {str(e)}")
-
-@app.post("/api/services/{service_name}/stop")
-async def stop_single_service(service_name: str):
-    """개별 서비스 중지"""
-    try:
-        logger.info(f"Stopping service: {service_name}")
-        success = service_manager.stop_service(service_name)
-        
-        if success:
-            return {
-                "success": True,
-                "message": f"Service {service_name} stopped successfully",
-                "service": service_manager.get_service_status().get(service_name, {})
-            }
-        else:
-            return {
-                "success": False,
-                "message": f"Failed to stop service {service_name}",
-                "service": service_manager.get_service_status().get(service_name, {})
-            }
-    except Exception as e:
-        logger.error(f"Failed to stop service {service_name}: {e}")
-        raise HTTPException(status_code=500, detail=f"Service stop failed: {str(e)}")
-
-@app.get("/api/services/{service_name}/status")
-async def get_single_service_status(service_name: str):
-    """개별 서비스 상태 조회"""
-    try:
-        all_status = service_manager.get_service_status()
-        service_status = all_status.get(service_name)
-        
-        if service_status is None:
-            raise HTTPException(status_code=404, detail=f"Service {service_name} not found")
-        
-        return {
-            "success": True,
-            "service_name": service_name,
-            "status": service_status,
-            "timestamp": datetime.now().isoformat()
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to get status for service {service_name}: {e}")
-        raise HTTPException(status_code=500, detail=f"Status retrieval failed: {str(e)}")
+        logger.error(f"❌ 선택된 서비스 시작 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"서비스 시작 실패: {str(e)}")
 
 if __name__ == "__main__":
     main()

@@ -59,11 +59,14 @@ class MySQLConnectionPool:
     def get_connection(self):
         """연결 풀에서 연결 가져오기"""
         try:
-            connection = self.pool.get(timeout=5)  # 타임아웃 단축
-            if not connection.open:
-                # 연결이 닫혔다면 새로 생성
+            connection = self.pool.get(timeout=10)  # 🔥 타임아웃 증가
+            
+            # 🔥 연결 상태 확인 강화
+            if not self._is_connection_alive(connection):
+                logger.warning("연결이 끊어짐, 새 연결 생성")
                 connection.close()  # 기존 연결 완전히 닫기
                 connection = pymysql.connect(**self.connection_params)
+            
             return connection
         except queue.Empty:
             # 풀에 연결이 없다면 새로 생성 (임시 연결)
@@ -92,6 +95,18 @@ class MySQLConnectionPool:
                 except:
                     pass
 
+    def _is_connection_alive(self, connection):
+        """연결 상태 확인"""
+        try:
+            if not connection.open:
+                return False
+            # ping으로 연결 상태 확인
+            connection.ping(reconnect=False)
+            return True
+        except Exception as e:
+            logger.warning(f"연결 상태 확인 실패: {e}")
+            return False
+
 
 class MySQLClient:
     """MySQL 데이터베이스 클라이언트 클래스"""
@@ -113,10 +128,16 @@ class MySQLClient:
                 "charset": "utf8mb4",
                 "autocommit": True,
                 "cursorclass": pymysql.cursors.DictCursor,
-                "connect_timeout": 30,
-                "read_timeout": 30,
-                "write_timeout": 30,
-                "ssl_disabled": True,  # AWS RDS SSL 비활성화
+                # 🔥 타임아웃 설정 최적화 (더 긴 타임아웃)
+                "connect_timeout": 60,  # 연결 타임아웃 60초
+                "read_timeout": 60,     # 읽기 타임아웃 60초  
+                "write_timeout": 60,    # 쓰기 타임아웃 60초
+                "ssl_disabled": True,   # AWS RDS SSL 비활성화
+                # 🔥 연결 유지 설정 추가
+                "init_command": "SET SESSION wait_timeout=28800",  # 8시간
+                "sql_mode": "STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO",
+                # 🔥 재연결 설정
+                "ping_interval": 300,   # 5분마다 ping
             }
             
             # custom_config가 전달되면 env_config을 덮어쓰기
@@ -124,11 +145,11 @@ class MySQLClient:
                 env_config.update(custom_config)
             config = env_config
 
-            # 연결 풀 크기 설정 (매우 작게 설정)
-            pool_size = min(2, max(1, get_int_env_var("DATABASE_CONNECTION_LIMIT", 1)))
+            # 🔥 연결 풀 크기 설정 최적화 (더 많은 연결 허용)
+            pool_size = min(10, max(5, get_int_env_var("DATABASE_CONNECTION_LIMIT", 5)))
             
             # 연결 풀에서 사용하지 않는 설정 제거
-            pool_config = {k: v for k, v in config.items() if k not in ['pool_name', 'pool_size', 'pool_reset_session', 'sql_mode']}
+            pool_config = {k: v for k, v in config.items() if k not in ['pool_name', 'pool_size', 'pool_reset_session', 'ping_interval']}
             
             self.pool = MySQLConnectionPool(pool_size=pool_size, **pool_config)
             logger.info(
@@ -203,13 +224,25 @@ class MySQLClient:
 
     # === 비동기 래퍼 메서드 ===
     async def execute_query_async(
-        self, query: str, params: tuple = None, fetch: bool = True
+        self, query: str, params: tuple = None, fetch: bool = True, max_retries: int = 3
     ) -> Optional[List[Dict]]:
-        """비동기 쿼리 실행 (ThreadPoolExecutor 래퍼)"""
+        """비동기 쿼리 실행 (ThreadPoolExecutor 래퍼) - 재시도 로직 포함"""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, self.execute_query, query, params, fetch
-        )
+        
+        for attempt in range(max_retries):
+            try:
+                return await loop.run_in_executor(
+                    None, self.execute_query, query, params, fetch
+                )
+            except Exception as e:
+                logger.warning(f"쿼리 실행 실패 (시도 {attempt + 1}/{max_retries}): {e}")
+                if attempt == max_retries - 1:
+                    logger.error(f"최대 재시도 횟수 초과, 쿼리 실행 실패: {query}")
+                    raise
+                # 재시도 전 잠시 대기
+                await asyncio.sleep(1 * (attempt + 1))  # 지수 백오프
+        
+        return None
 
     async def execute_many_async(self, query: str, params_list: List[tuple]) -> Dict:
         """비동기 executemany 실행 (ThreadPoolExecutor 래퍼)"""
@@ -248,7 +281,7 @@ class MySQLClient:
             logger.error(f"fetch_all 실행 오류: {e}")
             return []
 
-    async def fetch_one_async(self, query: str, params: tuple = None) -> Optional[tuple]:
+    async def fetch_one_async(self, query: str, params: tuple = None) -> Optional[Dict]:
         """비동기 단일 레코드 조회 (ThreadPoolExecutor 래퍼)"""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.fetch_one, query, params)
