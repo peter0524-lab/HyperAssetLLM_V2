@@ -25,34 +25,16 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
-  Building2,
-  Brain
+  Building2
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { api, userStorage, StockInfo } from "@/lib/api";
 
-// 샘플 주식 데이터 (실제로는 API에서 가져와야 함)
-const SAMPLE_STOCKS = [
-  { stock_code: "005930", company_name: "삼성전자", sector: "반도체" },
-  { stock_code: "000660", company_name: "SK하이닉스", sector: "반도체" },
-  { stock_code: "035420", company_name: "NAVER", sector: "인터넷" },
-  { stock_code: "051910", company_name: "LG화학", sector: "화학" },
-  { stock_code: "006400", company_name: "삼성SDI", sector: "배터리" },
-  { stock_code: "035720", company_name: "카카오", sector: "인터넷" },
-  { stock_code: "207940", company_name: "삼성바이오로직스", sector: "바이오" },
-  { stock_code: "068270", company_name: "셀트리온", sector: "바이오" },
-  { stock_code: "373220", company_name: "LG에너지솔루션", sector: "배터리" },
-  { stock_code: "000270", company_name: "기아", sector: "자동차" }
-];
+// 전체 종목 데이터 import
+import stocksData from "@/data/stocks.json";
 
-// 사용 가능한 AI 모델 목록
-const AI_MODELS = [
-  { value: "hyperclova", label: "HyperCLOVA", description: "네이버의 대규모 언어 모델" },
-  { value: "chatgpt", label: "ChatGPT", description: "OpenAI의 대화형 AI" },
-  { value: "claude", label: "Claude", description: "Anthropic의 AI 어시스턴트" },
-  { value: "gemini", label: "Gemini", description: "Google의 차세대 AI" }
-];
+
 
 const Stocks = () => {
   const navigate = useNavigate();
@@ -60,7 +42,6 @@ const Stocks = () => {
   const [userId, setUserId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedStocks, setSelectedStocks] = useState<StockInfo[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>('hyperclova');
 
   useEffect(() => {
     const currentUserId = userStorage.getUserId();
@@ -86,7 +67,7 @@ const Stocks = () => {
         setSelectedStocks(userConfig.stocks);
       }
       if (userConfig.model_type) {
-        setSelectedModel(userConfig.model_type);
+  
       }
     }
   }, [userConfig]);
@@ -117,37 +98,34 @@ const Stocks = () => {
     },
   });
 
-  // 전체 설정 저장 (종목 + 모델)
-  const saveAllSettingsMutation = useMutation({
+  // 종목 설정 저장
+  const saveStocksMutation = useMutation({
     mutationFn: async () => {
-      // 1. 종목 설정 저장
       await api.updateUserStocks(userId, { stocks: selectedStocks });
-      // 2. 모델 설정 저장
-      await api.updateUserModel(userId, { model_type: selectedModel });
     },
     onSuccess: () => {
-      toast.success("🎉 설정이 모두 저장되었습니다!");
+      toast.success("🎉 종목 설정이 저장되었습니다!");
       queryClient.invalidateQueries({ queryKey: ['userConfig', userId] });
       
-      // 대시보드로 이동
+      // 모델 선택 페이지로 이동
       setTimeout(() => {
-        navigate('/dashboard');
+        navigate('/model-selection');
       }, 1500);
     },
     onError: (error) => {
-      toast.error("❌ 설정 저장 중 오류가 발생했습니다.");
-      console.error('설정 저장 오류:', error);
+      toast.error("❌ 종목 설정 저장 중 오류가 발생했습니다.");
+      console.error('종목 설정 저장 오류:', error);
     },
   });
 
   // 종목 검색 결과 필터링
-  const filteredStocks = SAMPLE_STOCKS.filter(stock =>
+  const filteredStocks = stocksData.filter(stock =>
     stock.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     stock.stock_code.includes(searchQuery)
   );
 
   // 종목 추가
-  const addStock = (stock: typeof SAMPLE_STOCKS[0]) => {
+  const addStock = (stock: typeof stocksData[0]) => {
     // 중복 확인
     if (selectedStocks.some(s => s.stock_code === stock.stock_code)) {
       toast.error("이미 추가된 종목입니다.");
@@ -249,7 +227,7 @@ const Stocks = () => {
                       </p>
                     )}
                     
-                    {(searchQuery ? filteredStocks : SAMPLE_STOCKS.slice(0, 5)).map((stock) => (
+                    {(searchQuery ? filteredStocks : stocksData.slice(0, 5)).map((stock) => (
                       <div 
                         key={stock.stock_code}
                         className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors"
@@ -350,58 +328,7 @@ const Stocks = () => {
                   </CardContent>
                 </Card>
 
-                {/* AI 모델 선택 */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Brain className="h-5 w-5 text-primary" />
-                      AI 분석 모델
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="model-select">분석에 사용할 AI 모델을 선택하세요</Label>
-                      <Select value={selectedModel} onValueChange={setSelectedModel}>
-                        <SelectTrigger id="model-select" className="text-lg py-3">
-                          <SelectValue placeholder="AI 모델 선택" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {AI_MODELS.map((model) => (
-                            <SelectItem key={model.value} value={model.value}>
-                              <div className="flex flex-col">
-                                <span className="font-medium">{model.label}</span>
-                                <span className="text-sm text-gray-600">{model.description}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
 
-                    <div className="p-3 bg-blue-50 rounded-lg">
-                      <p className="text-sm text-blue-800">
-                        <strong>선택된 모델:</strong> {AI_MODELS.find(m => m.value === selectedModel)?.label}
-                      </p>
-                      <p className="text-xs text-blue-600 mt-1">
-                        {AI_MODELS.find(m => m.value === selectedModel)?.description}
-                      </p>
-                    </div>
-
-                    <Button
-                      onClick={() => updateModelMutation.mutate(selectedModel)}
-                      disabled={updateModelMutation.isPending}
-                      variant="outline"
-                      className="w-full"
-                    >
-                      {updateModelMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      ) : (
-                        <Save className="h-4 w-4 mr-2" />
-                      )}
-                      모델 설정 저장
-                    </Button>
-                  </CardContent>
-                </Card>
               </div>
             </div>
 
@@ -416,12 +343,12 @@ const Stocks = () => {
               </Button>
               
               <Button
-                onClick={() => saveAllSettingsMutation.mutate()}
-                disabled={saveAllSettingsMutation.isPending || selectedStocks.length === 0}
+                onClick={() => saveStocksMutation.mutate()}
+                disabled={saveStocksMutation.isPending || selectedStocks.length === 0}
                 className="bg-primary hover:bg-primary/90 px-8"
                 size="lg"
               >
-                {saveAllSettingsMutation.isPending ? (
+                {saveStocksMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                     설정 저장 중...
@@ -457,7 +384,7 @@ const Stocks = () => {
                   <div className="w-8 h-8 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center text-sm font-bold">
                     3
                   </div>
-                  <span className="text-gray-600">분석 시작</span>
+                  <span className="text-gray-600">모델 설정</span>
                 </div>
               </div>
             </div>

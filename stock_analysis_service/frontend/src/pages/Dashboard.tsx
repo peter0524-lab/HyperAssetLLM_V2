@@ -26,6 +26,11 @@ import TradingViewChart from "@/components/TradingViewChart";
 const Dashboard = () => {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string>('');
+  const [selectedStock, setSelectedStock] = useState<{
+    stock_code: string;
+    company_name: string;
+    sector: string;
+  } | null>(null);
 
   useEffect(() => {
     // 사용자 ID 확인
@@ -105,6 +110,11 @@ const Dashboard = () => {
   }
 
   const mainStock = userConfig?.stocks?.[0]?.stock_code || "005930";
+  
+  // 종목 변경 핸들러
+  const handleStockChange = (stock: { stock_code: string; company_name: string; sector: string }) => {
+    setSelectedStock(stock);
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -294,11 +304,14 @@ const Dashboard = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BarChart3 className="h-5 w-5 text-primary" />
-                    실시간 차트 - {mainStock}
+                    실시간 차트 - {selectedStock ? `${selectedStock.company_name} (${selectedStock.stock_code})` : mainStock}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="h-[520px]">
-                  <TradingViewChart symbol={mainStock} />
+                  <TradingViewChart 
+                    symbol={mainStock} 
+                    onStockChange={handleStockChange}
+                  />
                 </CardContent>
               </Card>
             </div>

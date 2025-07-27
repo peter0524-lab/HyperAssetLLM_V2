@@ -1,9 +1,12 @@
 
 import React, { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Menu, X } from "lucide-react";
 
 const Navbar = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -45,13 +48,9 @@ const Navbar = () => {
       )}
     >
       <div className="container flex items-center justify-between px-4 sm:px-6 lg:px-8">
-        <a 
-          href="#" 
+        <button 
           className="flex items-center space-x-2"
-          onClick={(e) => {
-            e.preventDefault();
-            scrollToTop();
-          }}
+          onClick={() => navigate('/')}
           aria-label="HyperAsset"
         >
           <img 
@@ -59,22 +58,34 @@ const Navbar = () => {
             alt="HyperAsset Logo" 
             className="h-7 sm:h-8" 
           />
-        </a>
+        </button>
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex space-x-8">
-          <a 
-            href="#" 
+          <button 
             className="nav-link"
-            onClick={(e) => {
-              e.preventDefault();
-              scrollToTop();
-            }}
+            onClick={() => navigate('/')}
           >
             Home
-          </a>
-          <a href="#features" className="nav-link">About</a>
-          <a href="#details" className="nav-link">Contact</a>
+          </button>
+          <button 
+            className="nav-link"
+            onClick={() => {
+              if (location.pathname === '/') {
+                document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
+              } else {
+                navigate('/#features');
+              }
+            }}
+          >
+            About
+          </button>
+          <button 
+            className="nav-link"
+            onClick={() => navigate('/contact')}
+          >
+            Contact
+          </button>
         </nav>
 
         {/* Mobile menu button - increased touch target */}
@@ -93,38 +104,40 @@ const Navbar = () => {
         isMenuOpen ? "opacity-100 translate-x-0" : "opacity-0 translate-x-full pointer-events-none"
       )}>
         <nav className="flex flex-col space-y-8 items-center mt-8">
-          <a 
-            href="#" 
+          <button 
             className="text-xl font-medium py-3 px-6 w-full text-center rounded-lg hover:bg-gray-100" 
-            onClick={(e) => {
-              e.preventDefault();
-              scrollToTop();
+            onClick={() => {
+              navigate('/');
               setIsMenuOpen(false);
               document.body.style.overflow = '';
             }}
           >
             Home
-          </a>
-          <a 
-            href="#features" 
+          </button>
+          <button 
             className="text-xl font-medium py-3 px-6 w-full text-center rounded-lg hover:bg-gray-100" 
             onClick={() => {
+              if (location.pathname === '/') {
+                document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
+              } else {
+                navigate('/#features');
+              }
               setIsMenuOpen(false);
               document.body.style.overflow = '';
             }}
           >
             About
-          </a>
-          <a 
-            href="#details" 
+          </button>
+          <button 
             className="text-xl font-medium py-3 px-6 w-full text-center rounded-lg hover:bg-gray-100" 
             onClick={() => {
+              navigate('/contact');
               setIsMenuOpen(false);
               document.body.style.overflow = '';
             }}
           >
             Contact
-          </a>
+          </button>
         </nav>
       </div>
     </header>

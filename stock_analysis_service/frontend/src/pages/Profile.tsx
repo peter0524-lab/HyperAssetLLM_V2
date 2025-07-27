@@ -282,21 +282,10 @@ const Profile = () => {
                       ) : (
                         <>
                           <Save className="mr-2 h-5 w-5" />
-                          {isNewUser ? '프로필 생성' : '수정 저장'}
+                          저장
                         </>
                       )}
                     </Button>
-                    
-                    {!isNewUser && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={goToDashboard}
-                        className="px-6"
-                      >
-                        대시보드로
-                      </Button>
-                    )}
                   </div>
                 </form>
 
@@ -334,7 +323,7 @@ const Profile = () => {
                   <div className="w-8 h-8 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center text-sm font-bold">
                     3
                   </div>
-                  <span className="text-gray-600">분석 시작</span>
+                  <span className="text-gray-600">모델 설정</span>
                 </div>
               </div>
             </div>

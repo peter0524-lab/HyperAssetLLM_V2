@@ -25,10 +25,19 @@ const Hero = () => {
   }, []);
 
   useEffect(() => {
+    // Lottie 애니메이션 로딩을 안전하게 처리
     fetch('/loop-header.lottie')
-      .then(response => response.json())
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Lottie file not found');
+        }
+        return response.json();
+      })
       .then(data => setLottieData(data))
-      .catch(error => console.error("Error loading Lottie animation:", error));
+      .catch(error => {
+        console.warn("Lottie animation not available, using fallback:", error);
+        setLottieData(null);
+      });
   }, []);
 
   useEffect(() => {
@@ -130,7 +139,7 @@ const Hero = () => {
               style={{ animationDelay: "0.7s" }}
             >
               <button 
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/auth')}
                 className="flex items-center justify-center group w-full sm:w-auto text-center transition-all duration-300 hover:scale-105 hover:shadow-lg" 
                 style={{
                   backgroundColor: '#FE5C02',

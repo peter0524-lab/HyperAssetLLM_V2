@@ -8,6 +8,9 @@ import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Stocks from "./pages/Stocks";
 import Results from "./pages/Results";
+import Contact from "./pages/Contact";
+import Auth from "./pages/Auth";
+import ModelSelection from "./pages/ModelSelection";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -27,10 +30,13 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/auth" element={<Auth />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/stocks" element={<Stocks />} />
+          <Route path="/model-selection" element={<ModelSelection />} />
           <Route path="/results" element={<Results />} />
+          <Route path="/contact" element={<Contact />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
