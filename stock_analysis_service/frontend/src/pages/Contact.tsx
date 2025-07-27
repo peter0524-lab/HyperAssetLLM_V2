@@ -74,7 +74,7 @@ const Contact = () => {
     {
       name: "이태환",
       major: "데이터사이언스학부 데이터사이언스전공",
-      role: "Lead Developer & Data Scientist",
+      role: "DEVELOPER",
       description: "AI 기반 주식 분석 시스템 개발 및 데이터 파이프라인 설계를 담당합니다.",
       skills: ["Python", "React", "Machine Learning", "Data Engineering"],
       icon: <Database className="h-8 w-8" />,
@@ -83,18 +83,18 @@ const Contact = () => {
     {
       name: "정현도",
       major: "데이터사이언스학부 심리뇌과학전공",
-      role: "Psychology & UX Researcher",
-      description: "사용자 경험 설계와 투자 심리학 분석을 통한 서비스 최적화를 담당합니다.",
-      skills: ["UX Design", "Psychology", "User Research", "Behavioral Analysis"],
+      role: "DEVELOPER",
+      description: "AI 기반 주식 분석 시스템 시스템에 필요한 기능들을 정확하게 개발해줍니다.",
+      skills: ["Python", "React", "Machine Learning", "Data Engineering"],
       icon: <Brain className="h-8 w-8" />,
       color: "from-purple-500 to-pink-500"
     },
     {
       name: "김민겸",
       major: "데이터사이언스학부 심리뇌과학전공",
-      role: "Cognitive Science & Data Analyst",
-      description: "인지과학 기반 데이터 분석과 사용자 행동 패턴 연구를 담당합니다.",
-      skills: ["Data Analysis", "Cognitive Science", "Statistics", "R"],
+      role: "DEVELOPER",
+      description: "AI 기반 주식 분석 시스템 시스템에 필요한 기능들을 정확하게 개발해줍니다.",
+      skills: ["Python", "React", "Machine Learning", "Data Engineering"],
       icon: <GraduationCap className="h-8 w-8" />,
       color: "from-green-500 to-teal-500"
     }
