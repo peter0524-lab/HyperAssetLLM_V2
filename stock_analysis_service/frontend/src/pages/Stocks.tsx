@@ -127,15 +127,15 @@ const Stocks = () => {
   // 종목 추가
   const addStock = (stock: typeof stocksData[0]) => {
     // 중복 확인
-    if (selectedStocks.some(s => s.stock_code === stock.stock_code)) {
+    if (selectedStocks.some(s => s.code === stock.stock_code)) {
       toast.error("이미 추가된 종목입니다.");
       return;
     }
 
     const newStock: StockInfo = {
-      stock_code: stock.stock_code,
-      company_name: stock.company_name,
-      is_active: true
+      code: stock.stock_code,
+      name: stock.company_name,
+      sector: stock.sector || "기타"
     };
 
     setSelectedStocks(prev => [...prev, newStock]);
@@ -145,19 +145,14 @@ const Stocks = () => {
 
   // 종목 제거
   const removeStock = (stockCode: string) => {
-    setSelectedStocks(prev => prev.filter(stock => stock.stock_code !== stockCode));
+    setSelectedStocks(prev => prev.filter(stock => stock.code !== stockCode));
     toast.success("종목이 제거되었습니다.");
   };
 
-  // 종목 활성/비활성 토글
+  // 종목 활성/비활성 토글 (더 이상 사용하지 않음)
   const toggleStockActive = (stockCode: string) => {
-    setSelectedStocks(prev => 
-      prev.map(stock => 
-        stock.stock_code === stockCode 
-          ? { ...stock, is_active: !stock.is_active }
-          : stock
-      )
-    );
+    // 백엔드에서 is_active 필드를 사용하지 않으므로 제거
+    console.log("toggleStockActive는 더 이상 사용되지 않습니다:", stockCode);
   };
 
   if (isLoadingConfig) {
@@ -244,7 +239,7 @@ const Stocks = () => {
                         <Button
                           size="sm"
                           onClick={() => addStock(stock)}
-                          disabled={selectedStocks.some(s => s.stock_code === stock.stock_code)}
+                          disabled={selectedStocks.some(s => s.code === stock.stock_code)}
                         >
                           <Plus className="h-4 w-4 mr-1" />
                           추가
@@ -296,27 +291,27 @@ const Stocks = () => {
                       <div className="space-y-3 max-h-64 overflow-y-auto">
                         {selectedStocks.map((stock) => (
                           <div 
-                            key={stock.stock_code}
+                            key={stock.code}
                             className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                           >
                             <div className="flex items-center gap-3">
-                              <button
-                                onClick={() => toggleStockActive(stock.stock_code)}
-                                className="flex-shrink-0"
-                              >
-                                <Badge variant={stock.is_active ? "default" : "secondary"}>
-                                  {stock.is_active ? "활성" : "비활성"}
+                              <div className="flex-shrink-0">
+                                <Badge variant="default">
+                                  활성
                                 </Badge>
-                              </button>
+                              </div>
                               <div>
-                                <p className="font-medium">{stock.company_name}</p>
-                                <p className="text-sm text-gray-600">{stock.stock_code}</p>
+                                <p className="font-medium">{stock.name}</p>
+                                <p className="text-sm text-gray-600">{stock.code}</p>
+                                {stock.sector && (
+                                  <p className="text-xs text-gray-500">{stock.sector}</p>
+                                )}
                               </div>
                             </div>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => removeStock(stock.stock_code)}
+                              onClick={() => removeStock(stock.code)}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             >
                               <X className="h-4 w-4" />
@@ -355,7 +350,7 @@ const Stocks = () => {
                   </>
                 ) : (
                   <>
-                    완료 및 대시보드로
+                    LLM 모델 선정하러가기
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </>
                 )}

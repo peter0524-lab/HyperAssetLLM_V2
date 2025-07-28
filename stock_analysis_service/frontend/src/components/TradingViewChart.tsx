@@ -11,7 +11,7 @@ interface TradingViewChartProps {
   height?: string | number;
   locale?: string;
   timezone?: string;
-  onStockChange?: (stock: { stock_code: string; company_name: string; sector: string }) => void;
+  onStockChange?: (stock: { code: string; name: string; sector?: string }) => void;
 }
 
 const TradingViewChart: React.FC<TradingViewChartProps> = ({
@@ -48,8 +48,12 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
   const handleStockSelect = (stock: typeof stocksData[0]) => {
     setSelectedStock(stock);
     setSearchQuery("");
-    // 상위 컴포넌트에 변경 사항 전달
-    onStockChange?.(stock);
+    // 상위 컴포넌트에 변경 사항 전달 (새로운 형식으로 변환)
+    onStockChange?.({
+      code: stock.stock_code,
+      name: stock.company_name,
+      sector: stock.sector
+    });
   };
 
   // TradingView iframe 위젯 URL 생성

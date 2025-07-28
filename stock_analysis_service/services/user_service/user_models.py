@@ -60,6 +60,23 @@ class UserStockUpdate(BaseModel):
     stock_name: Optional[str] = Field(None, min_length=1, max_length=100)
     enabled: Optional[bool] = None
 
+class StockInfo(BaseModel):
+    """종목 정보 모델"""
+    code: str = Field(..., min_length=6, max_length=6, description="종목코드")
+    name: str = Field(..., min_length=1, max_length=100, description="종목명")
+    sector: Optional[str] = Field(None, description="업종")
+    
+    @validator('code')
+    def validate_stock_code(cls, v):
+        """종목코드 형식 검증"""
+        if not v.isdigit():
+            raise ValueError('종목코드는 숫자만 포함해야 합니다')
+        return v
+
+class UserStocksBatch(BaseModel):
+    """사용자 종목 배치 설정 모델"""
+    stocks: List[StockInfo] = Field(..., description="종목 리스트")
+
 class UserModelCreate(BaseModel):
     """사용자 모델 설정 모델"""
     model_type: ModelType = Field(default=ModelType.HYPERCLOVA, description="선택할 모델 타입")

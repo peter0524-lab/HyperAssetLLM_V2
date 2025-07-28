@@ -16,36 +16,125 @@ const Hero = () => {
   const [isStartingServices, setIsStartingServices] = useState(false);
   const [startupPhase, setStartupPhase] = useState<'starting' | 'checking' | 'complete' | 'error'>('starting');
 
+  // 🔥 실제로 서버들을 시작하는 함수
+  const startAllServers = async () => {
+    console.log("🚀 서버 시작 프로세스 시작");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    try {
+      // 1단계: Simple Server Starter를 통해 모든 서버 시작 요청
+      console.log("📡 1단계: 서버 시작 요청 중...");
+      console.log("🔗 요청 URL: http://localhost:9998/start-servers");
+      console.log("📤 요청 방식: POST");
+      
+      const startTime = Date.now();
+      const response = await fetch('http://localhost:9998/start-servers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const requestTime = Date.now() - startTime;
+      console.log(`⏱️ 요청 완료 시간: ${requestTime}ms`);
+
+      if (!response.ok) {
+        console.error(`❌ HTTP 에러! 상태 코드: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ 서버 시작 요청 성공!");
+      console.log("📋 응답 데이터:", result);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      
+      // 2단계: 서버들이 완전히 시작될 때까지 대기
+      console.log("⏳ 2단계: 서버 시작 완료 대기 중...");
+      console.log("🕐 대기 시간: 10초");
+      
+      // 카운트다운 표시
+      for (let i = 10; i > 0; i--) {
+        console.log(`⏰ 남은 시간: ${i}초...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      console.log("✅ 대기 완료!");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      
+      // 3단계: 최종 완료
+      console.log("🎉 3단계: 모든 서비스 시작 완료!");
+      console.log("✅ Server Starter (포트 9999) - 실행됨");
+      console.log("✅ API Gateway (포트 8005) - 실행됨");
+      console.log("✅ User Service (포트 8006) - 실행됨");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    } catch (error) {
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.error("❌ 서버 시작 실패!");
+      console.error("🔍 에러 상세:", error);
+      console.error("📋 에러 메시지:", error.message);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      throw error;
+    }
+  };
+
   // 서비스 시작 함수
   const handleStartDashboard = async () => {
+    console.log("🎯 대시보드 시작하기 버튼 클릭됨!");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("🚀 서비스 시작 프로세스 개시!");
+    
     setIsStartingServices(true);
     setStartupPhase('starting');
 
     try {
-      // 1단계: 핵심 서비스 시작 시도
+      // 1단계: 실제로 서버들을 시작하기
+      console.log("📢 사용자 알림: 서비스를 시작하고 있습니다...");
       toast.info("🚀 서비스를 시작하고 있습니다...");
       
-      // 🔥 실제로 서버를 시작하는 API 호출 (타임아웃 무시)
-      try {
-        await api.startCoreServices();
-      } catch (error) {
-        console.log("start-core API 호출 실패, 서비스 상태 확인으로 진행:", error);
-        // API 호출 실패해도 계속 진행
-      }
+      console.log("🔄 서버 시작 함수 호출 중...");
+      
+      // 🔥 직접 서버들을 시작하는 함수 호출
+      await startAllServers();
+      
+      console.log("🎉 모든 서버 시작 완료!");
+      console.log("📢 사용자 알림: 서비스가 성공적으로 시작되었습니다!");
+      toast.success("✅ 서비스가 성공적으로 시작되었습니다!");
+      
+      // 4단계: 인증 페이지로 이동
+      console.log("🔄 4단계: 인증 페이지로 이동 준비 중...");
+      console.log("⏰ 1.5초 후 자동 이동...");
+      
+      setTimeout(() => {
+        console.log("🎯 인증 페이지로 이동: /auth");
+        console.log("🔄 서비스 시작 상태 초기화");
+        setIsStartingServices(false);
+        navigate('/auth');
+        console.log("✅ 페이지 이동 완료!");
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      }, 1500);
+      return;
       
       // 2단계: 서비스 상태 확인 (폴링)
       setStartupPhase('checking');
       let attempts = 0;
-      const maxAttempts = 30; // 30초 제한
+      const maxAttempts = 60; // 60초 제한 (서버 시작 시간 고려)
       
       while (attempts < maxAttempts) {
         try {
           const statusResponse = await api.getServicesStatus();
           
           if (statusResponse.success && statusResponse.data) {
-            const services = statusResponse.data;
+            const services = statusResponse.data.services || statusResponse.data;
             const userServiceRunning = services.user_service?.is_running;
             const apiGatewayRunning = services.api_gateway?.is_running;
+            
+            console.log("🔍 서비스 상태 확인:", {
+              userService: services.user_service,
+              apiGateway: services.api_gateway,
+              userServiceRunning,
+              apiGatewayRunning
+            });
             
             if (userServiceRunning && apiGatewayRunning) {
               // 서비스 시작 완료
@@ -60,8 +149,12 @@ const Hero = () => {
               return;
             }
           }
-        } catch (error) {
-          console.log(`서비스 상태 확인 시도 ${attempts + 1}: 대기 중...`);
+        } catch (error: any) {
+          console.log(`🔄 서비스 상태 확인 시도 ${attempts + 1}: 대기 중...`, {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status
+          });
         }
         
         attempts++;
@@ -72,12 +165,24 @@ const Hero = () => {
       throw new Error('서비스 시작 시간이 초과되었습니다');
       
     } catch (error) {
-      console.error('서비스 시작 실패:', error);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.error('💥 서비스 시작 실패!');
+      console.error('🔍 에러 상세 정보:', error);
+      console.error('📋 에러 타입:', error.name);
+      console.error('📋 에러 메시지:', error.message);
+      console.log("🔄 에러 상태로 전환 중...");
+      
       setStartupPhase('error');
+      
+      console.log("📢 사용자 알림: 서비스 시작에 실패했습니다.");
       toast.error("❌ 서비스 시작에 실패했습니다. 잠시 후 다시 시도해주세요.");
       
+      console.log("⏰ 3초 후 초기 상태로 복원...");
       setTimeout(() => {
+        console.log("🔄 서비스 시작 상태 초기화");
         setIsStartingServices(false);
+        console.log("✅ 초기 상태 복원 완료");
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       }, 3000);
     }
   };

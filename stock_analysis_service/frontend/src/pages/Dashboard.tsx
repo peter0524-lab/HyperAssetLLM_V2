@@ -30,9 +30,9 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string>('');
   const [selectedStock, setSelectedStock] = useState<{
-    stock_code: string;
-    company_name: string;
-    sector: string;
+    code: string;
+    name: string;
+    sector?: string;
   } | null>(null);
   const [viewMode, setViewMode] = useState<'dashboard' | 'monitor'>('dashboard');
 
@@ -51,6 +51,14 @@ const Dashboard = () => {
   const { data: userConfig, isLoading: isLoadingConfig, error: configError } = useQuery({
     queryKey: ['userConfig', userId],
     queryFn: () => api.getUserConfig(userId),
+    enabled: !!userId,
+    retry: 1,
+  });
+
+  // 🔥 사용자 활성화 서비스 조회 추가
+  const { data: userWantedServices, isLoading: isLoadingServices } = useQuery({
+    queryKey: ['userWantedServices', userId],
+    queryFn: () => api.getUserWantedServices(userId),
     enabled: !!userId,
     retry: 1,
   });
@@ -75,14 +83,16 @@ const Dashboard = () => {
   const executeReportMutation = useMutation({ mutationFn: api.executeReportAnalysis });
   const executeFlowMutation = useMutation({ mutationFn: api.executeFlowAnalysis });
 
-  if (isLoadingConfig) {
+  if (isLoadingConfig || isLoadingServices) {
     return (
       <div className="min-h-screen bg-white">
         <Navbar />
         <div className="flex items-center justify-center min-h-[50vh]">
           <div className="text-center">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-            <p className="text-gray-600">사용자 설정을 불러오는 중...</p>
+            <p className="text-gray-600">
+              {isLoadingConfig ? "사용자 설정을 불러오는 중..." : "서비스 설정을 불러오는 중..."}
+            </p>
           </div>
         </div>
         <Footer />
@@ -113,10 +123,10 @@ const Dashboard = () => {
     );
   }
 
-  const mainStock = userConfig?.stocks?.[0]?.stock_code || "005930";
+  const mainStock = userConfig?.stocks?.[0]?.code || "005930";
   
   // 종목 변경 핸들러
-  const handleStockChange = (stock: { stock_code: string; company_name: string; sector: string }) => {
+  const handleStockChange = (stock: { code: string; name: string; sector?: string }) => {
     setSelectedStock(stock);
   };
 
@@ -240,39 +250,99 @@ const Dashboard = () => {
                     )}
                   </Button>
                   
+                  {/* 🔥 활성화된 서비스만 버튼 표시 */}
                   <div className="grid grid-cols-2 gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => executeNewsMutation.mutate()}
-                      disabled={executeNewsMutation.isPending}
-                    >
-                      📰 뉴스
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => executeChartMutation.mutate()}
-                      disabled={executeChartMutation.isPending}
-                    >
-                      📈 차트
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => executeDisclosureMutation.mutate()}
-                      disabled={executeDisclosureMutation.isPending}
-                    >
-                      📋 공시
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => executeFlowMutation.mutate()}
-                      disabled={executeFlowMutation.isPending}
-                    >
-                      💰 수급
-                    </Button>
+                    {userWantedServices?.success && userWantedServices?.data && (
+                      <>
+                        {userWantedServices.data.news_service && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => executeNewsMutation.mutate()}
+                            disabled={executeNewsMutation.isPending}
+                            className="flex flex-col items-center py-3 h-auto"
+                          >
+                            <span className="text-lg mb-1">📰</span>
+                            <span className="text-xs">뉴스 즉시 실행해보기</span>
+                          </Button>
+                        )}
+                        
+                        {userWantedServices.data.chart_service && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => executeChartMutation.mutate()}
+                            disabled={executeChartMutation.isPending}
+                            className="flex flex-col items-center py-3 h-auto"
+                          >
+                            <span className="text-lg mb-1">📈</span>
+                            <span className="text-xs">차트 즉시 실행해보기</span>
+                          </Button>
+                        )}
+                        
+                        {userWantedServices.data.disclosure_service && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => executeDisclosureMutation.mutate()}
+                            disabled={executeDisclosureMutation.isPending}
+                            className="flex flex-col items-center py-3 h-auto"
+                          >
+                            <span className="text-lg mb-1">📋</span>
+                            <span className="text-xs">공시 즉시 실행해보기</span>
+                          </Button>
+                        )}
+                        
+                        {userWantedServices.data.flow_service && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => executeFlowMutation.mutate()}
+                            disabled={executeFlowMutation.isPending}
+                            className="flex flex-col items-center py-3 h-auto"
+                          >
+                            <span className="text-lg mb-1">💰</span>
+                            <span className="text-xs">수급 즉시 실행해보기</span>
+                          </Button>
+                        )}
+                        
+                        {userWantedServices.data.report_service && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => executeReportMutation.mutate()}
+                            disabled={executeReportMutation.isPending}
+                            className="flex flex-col items-center py-3 h-auto"
+                          >
+                            <span className="text-lg mb-1">📊</span>
+                            <span className="text-xs">리포트 즉시 실행해보기</span>
+                          </Button>
+                        )}
+                      </>
+                    )}
+                    
+                    {/* 로딩 중이거나 활성화된 서비스가 없을 때 */}
+                    {(isLoadingServices || !userWantedServices?.success || !userWantedServices?.data) && (
+                      <div className="col-span-2 text-center py-4 text-gray-500">
+                        {isLoadingServices ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>서비스 설정을 불러오는 중...</span>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="mb-2">활성화된 서비스가 없습니다.</p>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => navigate('/profile')}
+                            >
+                              서비스 설정하기
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <Button 
@@ -307,13 +377,16 @@ const Dashboard = () => {
                   {userConfig?.stocks?.length > 0 ? (
                     <div className="space-y-3">
                       {userConfig.stocks.slice(0, 5).map((stock) => (
-                        <div key={stock.stock_code} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                        <div key={stock.code} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                           <div>
-                            <p className="font-medium">{stock.company_name}</p>
-                            <p className="text-sm text-gray-600">{stock.stock_code}</p>
+                            <p className="font-medium">{stock.name}</p>
+                            <p className="text-sm text-gray-600">{stock.code}</p>
+                            {stock.sector && (
+                              <p className="text-xs text-gray-500">{stock.sector}</p>
+                            )}
                           </div>
-                          <Badge variant={stock.is_active ? "default" : "secondary"}>
-                            {stock.is_active ? "활성" : "비활성"}
+                          <Badge variant="default">
+                            활성
                           </Badge>
                         </div>
                       ))}
@@ -342,7 +415,7 @@ const Dashboard = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BarChart3 className="h-5 w-5 text-primary" />
-                    실시간 차트 - {selectedStock ? `${selectedStock.company_name} (${selectedStock.stock_code})` : mainStock}
+                    실시간 차트 - {selectedStock ? `${selectedStock.name} (${selectedStock.code})` : mainStock}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="h-[520px]">

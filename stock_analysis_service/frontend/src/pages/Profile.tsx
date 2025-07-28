@@ -71,6 +71,7 @@ const Profile = () => {
       // 사용자 ID 업데이트 (백엔드에서 반환된 ID 사용)
       if (data?.user_id) {
         userStorage.setUserId(data.user_id);
+        userStorage.setRealUserId(data.user_id); // 실제 DB 사용자 ID 저장
         setUserId(data.user_id);
       }
       

@@ -48,27 +48,23 @@ const Auth = () => {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       try {
-        // 실제 API 호출
-        const userConfig: any = await api.getUserConfig(inputPhoneNumber);
-        console.log('✅ API 응답:', userConfig);
+        // 전화번호로 사용자 확인 API 호출
+        const response = await fetch(`http://localhost:8005/api/user/check-user?phone_number=${inputPhoneNumber}`);
+        const userCheckResult: any = await response.json();
+        console.log('✅ API 응답:', userCheckResult);
         
-        // 🔍 중요: 응답에서 phone_number가 입력한 번호와 일치하는지 확인
-        // 백엔드가 기본값을 반환하는 경우를 감지
-        const userData = userConfig.data || userConfig;
-        
-        if (userData.phone_number && userData.phone_number !== inputPhoneNumber) {
-          console.log(`❌ 전화번호 불일치: 입력(${inputPhoneNumber}) vs 응답(${userData.phone_number})`);
-          return { exists: false, error: 'Phone number mismatch - user not found' };
+        // API 응답 구조: { success: true, data: { exists: true, user_id: "...", username: "..." } }
+        if (userCheckResult.success && userCheckResult.data && userCheckResult.data.exists) {
+          console.log('✅ 실제 프로필 찾음:', userCheckResult);
+          return { 
+            exists: true, 
+            user_id: userCheckResult.data.user_id,
+            username: userCheckResult.data.username 
+          };
+        } else {
+          console.log('❌ 사용자 존재하지 않음');
+          return { exists: false, error: 'User not found' };
         }
-        
-        // username이 default_user인 경우도 신규 사용자로 처리
-        if (userData.username === 'default_user') {
-          console.log('❌ 기본 사용자 응답 - 실제 프로필 없음');
-          return { exists: false, error: 'Default user response - no real profile' };
-        }
-        
-        console.log('✅ 실제 프로필 찾음:', userConfig);
-        return { exists: true, userConfig };
       } catch (error: any) {
         console.log('❌ API 에러:', error.response?.status);
         
@@ -90,6 +86,9 @@ const Auth = () => {
         
         // 사용자 정보 저장
         userStorage.setUserId(phoneNumber);
+        if (data.user_id) {
+          userStorage.setRealUserId(data.user_id); // 실제 DB 사용자 ID 저장
+        }
         
         // 2초 후 대시보드로 이동
         setTimeout(() => {

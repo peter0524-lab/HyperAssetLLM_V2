@@ -21,7 +21,8 @@ from shared.user_config.user_config_manager import user_config_manager
 from user_models import (
     UserProfileCreate, UserProfileUpdate, UserStockCreate, UserStockUpdate,
     UserModelCreate, UserConfigResponse, ApiResponse, ModelType,
-    UserWantedServiceCreate, UserWantedServiceUpdate, UserWantedServiceResponse
+    UserWantedServiceCreate, UserWantedServiceUpdate, UserWantedServiceResponse,
+    StockInfo, UserStocksBatch
 )
 
 # FastAPI 앱 생성
@@ -294,6 +295,54 @@ async def add_user_stock(
     except Exception as e:
         logger.error(f"❌ 사용자 종목 추가 실패: {e}")
         raise HTTPException(status_code=500, detail="종목 추가에 실패했습니다")
+
+@app.post("/users/{user_id}/stocks/batch", response_model=ApiResponse)
+async def set_user_stocks_batch(
+    user_id: str,
+    stocks_data: UserStocksBatch,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """사용자 종목 배치 설정 (기존 종목 삭제 후 새로 추가)"""
+    try:
+        # 사용자 존재 확인
+        user_check = "SELECT user_id FROM user_profiles WHERE user_id = %s"
+        user_result = await db.execute_query_async(user_check, (user_id,), fetch=True)
+        
+        if not user_result:
+            raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다")
+        
+        # 기존 종목 삭제
+        delete_query = "DELETE FROM user_stocks WHERE user_id = %s"
+        await db.execute_query_async(delete_query, (user_id,))
+        
+        # 새 종목들 추가
+        if stocks_data.stocks:
+            insert_query = """
+            INSERT INTO user_stocks (user_id, stock_code, stock_name, enabled)
+            VALUES (%s, %s, %s, %s)
+            """
+            
+            for stock in stocks_data.stocks:
+                await db.execute_query_async(
+                    insert_query,
+                    (user_id, stock.code, stock.name, True)
+                )
+        
+        # 캐시 갱신
+        await user_config_manager.update_user_cache(user_id)
+        
+        logger.info(f"✅ 사용자 종목 배치 설정 완료: {user_id} - {len(stocks_data.stocks)}개 종목")
+        
+        return ApiResponse(
+            success=True,
+            message=f"{len(stocks_data.stocks)}개 종목이 성공적으로 설정되었습니다"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 사용자 종목 배치 설정 실패: {e}")
+        raise HTTPException(status_code=500, detail="종목 배치 설정에 실패했습니다")
 
 @app.get("/users/{user_id}/stocks", response_model=ApiResponse)
 async def get_user_stocks(
@@ -648,66 +697,93 @@ async def update_user_wanted_services(
     services: UserWantedServiceUpdate,
     db: MySQLClient = Depends(get_mysql_client)
 ):
-    """사용자 원하는 서비스 설정 수정"""
+    """사용자 원하는 서비스 설정 수정 (없으면 생성)"""
     try:
+        # 사용자 존재 확인
+        user_check = "SELECT user_id, phone_number FROM user_profiles WHERE user_id = %s"
+        user_result = await db.fetch_one_async(user_check, (user_id,))
+        
+        if not user_result:
+            raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다")
+        
+        phone_number = user_result['phone_number']
+        
         # 기존 설정 확인
         check_query = "SELECT user_id FROM user_wanted_service WHERE user_id = %s"
         existing = await db.fetch_one_async(check_query, (user_id,))
         
-        if not existing:
-            raise HTTPException(status_code=404, detail="서비스 설정을 찾을 수 없습니다")
-        
-        # 업데이트할 필드들 준비
-        update_fields = []
-        values = []
-        
-        if services.news_service is not None:
-            update_fields.append("news_service = %s")
-            values.append(int(services.news_service))
-        
-        if services.disclosure_service is not None:
-            update_fields.append("disclosure_service = %s")
-            values.append(int(services.disclosure_service))
-        
-        if services.report_service is not None:
-            update_fields.append("report_service = %s")
-            values.append(int(services.report_service))
-        
-        if services.chart_service is not None:
-            update_fields.append("chart_service = %s")
-            values.append(int(services.chart_service))
-        
-        if services.flow_service is not None:
-            update_fields.append("flow_service = %s")
-            values.append(int(services.flow_service))
-        
-        if not update_fields:
-            raise HTTPException(status_code=400, detail="수정할 항목이 없습니다")
-        
-        # 업데이트 쿼리 실행
-        update_fields.append("updated_at = CURRENT_TIMESTAMP")
-        values.append(user_id)
-        
-        update_query = f"""
-            UPDATE user_wanted_service 
-            SET {', '.join(update_fields)}
-            WHERE user_id = %s
-        """
-        
-        await db.execute_query_async(update_query, tuple(values))
-        
-        logger.info(f"✅ 사용자 원하는 서비스 설정 수정 완료: {user_id}")
+        if existing:
+            # 기존 설정이 있으면 업데이트
+            update_fields = []
+            values = []
+            
+            if services.news_service is not None:
+                update_fields.append("news_service = %s")
+                values.append(int(services.news_service))
+            
+            if services.disclosure_service is not None:
+                update_fields.append("disclosure_service = %s")
+                values.append(int(services.disclosure_service))
+            
+            if services.report_service is not None:
+                update_fields.append("report_service = %s")
+                values.append(int(services.report_service))
+            
+            if services.chart_service is not None:
+                update_fields.append("chart_service = %s")
+                values.append(int(services.chart_service))
+            
+            if services.flow_service is not None:
+                update_fields.append("flow_service = %s")
+                values.append(int(services.flow_service))
+            
+            if not update_fields:
+                raise HTTPException(status_code=400, detail="수정할 항목이 없습니다")
+            
+            # 업데이트 쿼리 실행
+            values.append(user_id)
+            
+            update_query = f"""
+                UPDATE user_wanted_service 
+                SET {', '.join(update_fields)}
+                WHERE user_id = %s
+            """
+            
+            await db.execute_query_async(update_query, tuple(values))
+            logger.info(f"✅ 사용자 원하는 서비스 설정 업데이트 완료: {user_id}")
+            
+        else:
+            # 기존 설정이 없으면 새로 생성
+            insert_query = """
+                INSERT INTO user_wanted_service 
+                (user_id, phone_number, news_service, disclosure_service, 
+                 report_service, chart_service, flow_service)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            await db.execute_query_async(insert_query, (
+                user_id,
+                phone_number,
+                int(services.news_service) if services.news_service is not None else 0,
+                int(services.disclosure_service) if services.disclosure_service is not None else 0,
+                int(services.report_service) if services.report_service is not None else 0,
+                int(services.chart_service) if services.chart_service is not None else 0,
+                int(services.flow_service) if services.flow_service is not None else 0
+            ), fetch=False)
+            logger.info(f"✅ 사용자 원하는 서비스 설정 생성 완료: {user_id}")
         
         return ApiResponse(
             success=True,
-            message="서비스 설정이 성공적으로 수정되었습니다"
+            message="서비스 설정이 성공적으로 저장되었습니다"
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ 사용자 원하는 서비스 설정 수정 실패: {e}")
-        raise HTTPException(status_code=500, detail="서비스 설정 수정에 실패했습니다")
+        logger.error(f"❌ 사용자 원하는 서비스 설정 실패: {e}")
+        logger.error(f"❌ 상세 오류: {type(e).__name__}: {str(e)}")
+        import traceback
+        logger.error(f"❌ 스택 트레이스: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"서비스 설정에 실패했습니다: {str(e)}")
 
 # === 사용자 종합 설정 조회 API ===
 

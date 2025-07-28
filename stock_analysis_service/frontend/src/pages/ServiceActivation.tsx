@@ -105,55 +105,146 @@ const ServiceActivation = () => {
     }));
   };
 
-  // 서비스 설정 저장 및 활성화
+  // 서비스 활성화 뮤테이션
   const activateServicesMutation = useMutation({
     mutationFn: async () => {
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("🎯 서비스 활성화 프로세스 시작!");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("👤 현재 사용자 ID:", userId);
+      console.log("📋 선택된 서비스들:", selectedServices);
+      console.log("🔢 선택된 서비스 개수:", Object.values(selectedServices).filter(Boolean).length);
+      
+      // 1단계: 사용자 원하는 서비스 설정 저장
+      console.log("📝 1단계: 사용자 원하는 서비스 설정 DB 저장 시작");
+      console.log("🔗 API 호출: updateUserWantedServices");
+      console.log("📤 전송 데이터:", selectedServices);
+      
       setActivationPhase('saving');
       
-             // 1. 서비스 설정 저장
-       await api.createUserWantedServices(userId, {
-         news_service: selectedServices.news_service,
-         disclosure_service: selectedServices.disclosure_service,
-         report_service: selectedServices.report_service,
-         chart_service: selectedServices.chart_service,
-         flow_service: selectedServices.flow_service
-       });
+      try {
+        const saveStartTime = performance.now();
+        await api.updateUserWantedServices(userId, selectedServices);
+        const saveEndTime = performance.now();
+        console.log(`✅ 1단계 완료: 사용자 원하는 서비스 설정 저장 성공 (${(saveEndTime - saveStartTime).toFixed(0)}ms)`);
+      } catch (error) {
+        console.error("❌ 1단계 실패: 사용자 원하는 서비스 설정 저장 실패");
+        console.error("🔍 에러 상세:", error);
+        throw error;
+      }
       
       // 잠시 대기
+      console.log("⏳ 1-2단계 사이 대기 (1초)");
       await new Promise(resolve => setTimeout(resolve, 1000));
       
+      // 2단계: 서비스 활성화 단계로 전환
+      console.log("🚀 2단계: 서비스 활성화 단계 시작");
       setActivationPhase('activating');
       
-      // 2. 활성화된 서비스들 추출
+      // 2-1. 활성화된 서비스들 추출
       const activeServices = Object.entries(selectedServices)
         .filter(([_, enabled]) => enabled)
         .map(([key, _]) => key);
       
+      console.log("📊 활성화할 서비스 목록:", activeServices);
+      console.log("📊 활성화할 서비스 개수:", activeServices.length);
+      
       if (activeServices.length > 0) {
-        // 3. 서비스 활성화 (선택된 서비스들 + orchestrator 포함)
+        // 2-2. 실제 서비스 활성화 (orchestrator 포함)
         const servicesWithOrchestrator = [...activeServices, 'orchestrator'];
-        await api.activateSelectedServices(userId, servicesWithOrchestrator);
+        console.log("🎯 최종 활성화 서비스 목록 (orchestrator 포함):", servicesWithOrchestrator);
+        console.log("🔗 API 호출: activateSelectedServices");
+        console.log("📤 전송 데이터 - userId:", userId);
+        console.log("📤 전송 데이터 - services:", servicesWithOrchestrator);
+        
+        try {
+          const activateStartTime = performance.now();
+          const activationResult = await api.activateSelectedServices(userId, servicesWithOrchestrator);
+          const activateEndTime = performance.now();
+          console.log(`✅ 2단계 완료: 서비스 활성화 성공 (${(activateEndTime - activateStartTime).toFixed(0)}ms)`);
+          console.log("📋 활성화 결과:", activationResult);
+        } catch (error) {
+          console.error("❌ 2단계 실패: 서비스 활성화 실패");
+          console.error("🔍 에러 상세:", error);
+          console.error("🔍 에러 타입:", error.name);
+          console.error("🔍 에러 메시지:", error.message);
+          console.error("🔍 에러 스택:", error.stack);
+          if (error.response) {
+            console.error("🔍 서버 응답 상태:", error.response.status);
+            console.error("🔍 서버 응답 데이터:", error.response.data);
+          }
+          throw error;
+        }
         
         // 활성화 진행 시뮬레이션
+        console.log("⏳ 서비스 활성화 완료 대기 (3초)");
         await new Promise(resolve => setTimeout(resolve, 3000));
+      } else {
+        console.log("⚠️ 활성화할 서비스가 없습니다");
       }
       
+      // 3단계: 완료 단계
+      console.log("🎉 3단계: 서비스 활성화 프로세스 완료");
       setActivationPhase('complete');
+      
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("✅ 전체 서비스 활성화 프로세스 성공적으로 완료!");
+      console.log("📊 최종 결과 - 활성화된 서비스:", activeServices);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       
       return { activeServices };
     },
     onSuccess: (data) => {
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("🎉 onSuccess: 서비스 활성화 성공!");
+      console.log("📊 성공 데이터:", data);
+      console.log("🔄 쿼리 캐시 무효화 실행");
+      console.log("➡️ 3초 후 대시보드로 자동 이동 예정");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      
       toast.success("🎉 모든 설정이 완료되었습니다!");
       queryClient.invalidateQueries({ queryKey: ['userConfig', userId] });
       
       // 3초 후 대시보드로 이동
       setTimeout(() => {
+        console.log("➡️ 대시보드로 이동 실행: /dashboard");
         navigate('/dashboard');
       }, 3000);
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.error("💥 onError: 서비스 활성화 실패!");
+      console.error("🔍 에러 상세 정보:");
+      console.error("📋 에러 객체:", error);
+      console.error("📋 에러 메시지:", error.message);
+      console.error("📋 에러 타입:", error.name);
+      console.error("📋 상태 코드:", error.response?.status);
+      console.error("📋 상태 텍스트:", error.response?.statusText);
+      console.error("📋 서버 응답:", error.response?.data);
+      console.error("📋 요청 URL:", error.config?.url);
+      console.error("📋 요청 방식:", error.config?.method);
+      console.error("🔍 선택된 서비스:", selectedServices);
+      console.error("🔍 현재 사용자 정보:", JSON.parse(localStorage.getItem('user') || '{}'));
+
+      if (error.response?.status === 500) {
+        console.error("💥 500 에러 - 서버 내부 오류!");
+        console.error("🔍 가능한 원인:");
+        console.error("   - Orchestrator 서비스가 실행되지 않음");
+        console.error("   - API Gateway와 Orchestrator 간 통신 실패");
+        console.error("   - 데이터베이스 연결 문제");
+        console.error("🔧 해결 방안: Orchestrator 서비스 상태 및 API Gateway 로그를 확인하세요.");
+      } else if (error.response?.status === 404) {
+        console.error("💥 404 에러 - API 엔드포인트가 존재하지 않습니다!");
+        console.error("🔍 가능한 원인:");
+        console.error("   - API Gateway의 라우팅 설정 문제");
+        console.error("   - 서비스 엔드포인트 경로 오류");
+        console.error("🔧 해결 방안: API Gateway 라우팅 설정을 확인하세요.");
+      }
+
+      console.log("🔄 활성화 단계를 선택 단계로 되돌림");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      
       toast.error("❌ 서비스 활성화 중 오류가 발생했습니다.");
-      console.error('서비스 활성화 오류:', error);
       setActivationPhase('selection');
     },
   });
@@ -161,12 +252,34 @@ const ServiceActivation = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("🎯 '서비스 활성화' 버튼 클릭됨!");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("🔍 현재 시각:", new Date().toLocaleString());
+    console.log("👤 사용자 ID:", userId);
+    console.log("📋 현재 선택된 서비스들:", selectedServices);
+    
     // 최소 하나의 서비스 선택 확인
     const hasSelectedService = Object.values(selectedServices).some(enabled => enabled);
+    const selectedServicesList = Object.entries(selectedServices)
+      .filter(([_, enabled]) => enabled)
+      .map(([key, _]) => key);
+    
+    console.log("✅ 선택된 서비스 검증:");
+    console.log("   - 최소 하나 선택됨:", hasSelectedService);
+    console.log("   - 선택된 서비스 목록:", selectedServicesList);
+    console.log("   - 선택된 서비스 개수:", selectedServicesList.length);
+    
     if (!hasSelectedService) {
+      console.log("❌ 검증 실패: 선택된 서비스가 없음");
+      console.log("📢 사용자 알림: 최소 하나 이상의 서비스를 선택해주세요");
       toast.error("최소 하나 이상의 서비스를 선택해주세요.");
       return;
     }
+
+    console.log("✅ 검증 통과: 서비스 활성화 뮤테이션 실행");
+    console.log("🚀 activateServicesMutation.mutate() 호출");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     activateServicesMutation.mutate();
   };

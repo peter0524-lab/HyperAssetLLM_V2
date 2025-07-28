@@ -1064,24 +1064,24 @@ async def get_user_stocks(user_id: str):
 
 @app.post("/api/user/stocks/{user_id}")
 async def update_user_stocks(user_id: str, request: Request):
-    """사용자 종목 설정 업데이트"""
+    """사용자 종목 배치 설정 업데이트"""
     try:
         data = await request.json()
         
-        # User Service로 직접 프록시
+        # User Service의 배치 API로 프록시
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"http://localhost:8006/users/{user_id}/stocks", json=data)
+            response = await client.post(f"http://localhost:8006/users/{user_id}/stocks/batch", json=data)
             if response.status_code == 200:
                 return response.json()
             else:
                 raise HTTPException(status_code=response.status_code, detail=response.text)
                 
     except httpx.RequestError as e:
-        logger.error(f"❌ 사용자 종목 설정 실패: {e}")
-        raise HTTPException(status_code=500, detail=f"사용자 종목 설정 실패: {str(e)}")
+        logger.error(f"❌ 사용자 종목 배치 설정 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"사용자 종목 배치 설정 실패: {str(e)}")
     except Exception as e:
-        logger.error(f"❌ 사용자 종목 설정 실패: {e}")
-        raise HTTPException(status_code=500, detail=f"사용자 종목 설정 실패: {str(e)}")
+        logger.error(f"❌ 사용자 종목 배치 설정 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"사용자 종목 배치 설정 실패: {str(e)}")
 
 @app.get("/api/user/model/{user_id}")
 async def get_user_model(user_id: str):

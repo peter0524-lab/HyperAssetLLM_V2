@@ -104,9 +104,38 @@ const ModelSelection = () => {
         navigate('/service-activation');
       }, 1500);
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.error('💥 ModelSelection 페이지에서 모델 설정 오류!');
+      console.error('🔍 에러 상세 정보:');
+      console.error('📋 에러 객체:', error);
+      console.error('📋 에러 메시지:', error.message);
+      console.error('📋 에러 타입:', error.name);
+      console.error('📋 상태 코드:', error.response?.status);
+      console.error('📋 상태 텍스트:', error.response?.statusText);
+      console.error('📋 서버 응답:', error.response?.data);
+      console.error('📋 요청 URL:', error.config?.url);
+      console.error('📋 요청 방식:', error.config?.method);
+      console.error('🔍 선택된 모델:', selectedModel);
+      console.error('🔍 현재 사용자 정보:', JSON.parse(localStorage.getItem('user') || '{}'));
+      
+      if (error.response?.status === 404) {
+        console.error('💥 404 에러 - API 엔드포인트가 존재하지 않습니다!');
+        console.error('🔧 해결 방법:');
+        console.error('   1. API Gateway 라우팅 설정 확인');
+        console.error('   2. User Service 엔드포인트 구현 확인');
+        console.error('   3. URL 경로 정확성 확인');
+      } else if (error.response?.status === 500) {
+        console.error('💥 500 에러 - 서버 내부 오류입니다!');
+        console.error('🔧 해결 방법:');
+        console.error('   1. User Service 상태 확인');
+        console.error('   2. 데이터베이스 연결 확인');
+        console.error('   3. API Gateway 설정 확인');
+      }
+      
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      
       toast.error("❌ 모델 설정 저장 중 오류가 발생했습니다.");
-      console.error('모델 설정 오류:', error);
     },
   });
 
