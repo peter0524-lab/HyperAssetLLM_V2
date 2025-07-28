@@ -916,7 +916,16 @@ async def user_health():
 async def check_user_exists_api(phone_number: str):
     """사용자 존재 여부 확인 (API 일관성을 위한 /api/user/check-user 엔드포인트)"""
     try:
-        return await gateway.forward_request("user", "GET", f"/users/check?phone_number={phone_number}", use_cache=True)
+        # 직접 User Service 호출
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"http://localhost:8006/users/check?phone_number={phone_number}")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(status_code=response.status_code, detail=response.text)
+    except httpx.RequestError as e:
+        logger.error(f"❌ 사용자 확인 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"사용자 확인 실패: {str(e)}")
     except Exception as e:
         logger.error(f"❌ 사용자 확인 실패: {e}")
         raise HTTPException(status_code=500, detail=f"사용자 확인 실패: {str(e)}")
@@ -929,14 +938,26 @@ async def create_user_profile_api(request: Request):
         data = await request.json()
         logger.info(f"🔄 프로필 생성 요청 데이터: {data}")
         
-        # User Service로 요청 전달
-        result = await gateway.forward_request("user", "POST", "/users/profile", data=data, use_cache=False)
-        logger.info(f"✅ 프로필 생성 성공: {result}")
-        return result
+        # 직접 User Service 호출
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:8006/users/profile",
+                json=data,
+                headers={"Content-Type": "application/json"}
+            )
+            if response.status_code == 200:
+                result = response.json()
+                logger.info(f"✅ 프로필 생성 성공: {result}")
+                return result
+            else:
+                logger.error(f"❌ User Service 응답 오류: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=response.status_code, detail=response.text)
         
-    except HTTPException as he:
-        logger.error(f"❌ HTTP 예외 - 프로필 생성 실패: {he.detail}")
-        raise he
+    except httpx.RequestError as e:
+        logger.error(f"❌ User Service 연결 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"User Service 연결 실패: {str(e)}")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ 일반 예외 - 프로필 생성 실패: {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail=f"프로필 생성 실패: {str(e)}")
@@ -1026,12 +1047,17 @@ async def update_user_config_centralized(user_id: str, request: Request):
 async def get_user_stocks(user_id: str):
     """사용자 종목 설정 조회"""
     try:
-        stocks = await user_config_manager.get_user_stocks(user_id)
-        return {
-            "success": True,
-            "data": stocks,
-            "message": f"사용자 종목 조회 완료: {user_id} ({len(stocks)}개 종목)"
-        }
+        # User Service로 직접 프록시
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"http://localhost:8006/users/{user_id}/stocks")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(status_code=response.status_code, detail=response.text)
+                
+    except httpx.RequestError as e:
+        logger.error(f"❌ 사용자 종목 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"사용자 종목 조회 실패: {str(e)}")
     except Exception as e:
         logger.error(f"❌ 사용자 종목 조회 실패: {e}")
         raise HTTPException(status_code=500, detail=f"사용자 종목 조회 실패: {str(e)}")
@@ -1041,18 +1067,18 @@ async def update_user_stocks(user_id: str, request: Request):
     """사용자 종목 설정 업데이트"""
     try:
         data = await request.json()
-        stocks = data.get("stocks", [])
         
-        success = await user_config_manager.update_user_stocks(user_id, stocks)
-        
-        if success:
-            return {
-                "success": True,
-                "message": f"사용자 종목 설정 완료: {user_id} ({len(stocks)}개 종목)"
-            }
-        else:
-            raise HTTPException(status_code=500, detail="사용자 종목 설정에 실패했습니다")
-            
+        # User Service로 직접 프록시
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"http://localhost:8006/users/{user_id}/stocks", json=data)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(status_code=response.status_code, detail=response.text)
+                
+    except httpx.RequestError as e:
+        logger.error(f"❌ 사용자 종목 설정 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"사용자 종목 설정 실패: {str(e)}")
     except Exception as e:
         logger.error(f"❌ 사용자 종목 설정 실패: {e}")
         raise HTTPException(status_code=500, detail=f"사용자 종목 설정 실패: {str(e)}")
@@ -1061,12 +1087,16 @@ async def update_user_stocks(user_id: str, request: Request):
 async def get_user_model(user_id: str):
     """사용자 모델 타입 조회"""
     try:
-        model_type = await user_config_manager.get_user_model(user_id)
-        return {
-            "success": True,
-            "data": {"model_type": model_type},
-            "message": f"사용자 모델 조회 완료: {user_id} -> {model_type}"
-        }
+        # 직접 User Service 호출
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"http://localhost:8006/users/{user_id}/model")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(status_code=response.status_code, detail=response.text)
+    except httpx.RequestError as e:
+        logger.error(f"❌ User Service 연결 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"User Service 연결 실패: {str(e)}")
     except Exception as e:
         logger.error(f"❌ 사용자 모델 조회 실패: {e}")
         raise HTTPException(status_code=500, detail=f"사용자 모델 조회 실패: {str(e)}")
@@ -1081,16 +1111,23 @@ async def set_user_model(user_id: str, request: Request):
         if not model_type:
             raise HTTPException(status_code=400, detail="model_type이 필요합니다")
         
-        success = await user_config_manager.set_user_model(user_id, model_type)
-        
-        if success:
-            return {
-                "success": True,
-                "message": f"사용자 모델 설정 완료: {user_id} -> {model_type}"
-            }
-        else:
-            raise HTTPException(status_code=500, detail="사용자 모델 설정에 실패했습니다")
+        # 직접 User Service 호출
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"http://localhost:8006/users/{user_id}/model",
+                json={"model_type": model_type},
+                headers={"Content-Type": "application/json"}
+            )
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(status_code=response.status_code, detail=response.text)
             
+    except httpx.RequestError as e:
+        logger.error(f"❌ User Service 연결 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"User Service 연결 실패: {str(e)}")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ 사용자 모델 설정 실패: {e}")
         raise HTTPException(status_code=500, detail=f"사용자 모델 설정 실패: {str(e)}")
@@ -1136,7 +1173,24 @@ async def create_user_wanted_services(user_id: str, request: Request):
     """사용자 원하는 서비스 설정 생성"""
     try:
         data = await request.json()
-        return await gateway.forward_request("user", "POST", f"/users/{user_id}/wanted-services", data=data, use_cache=False)
+        
+        # 직접 User Service 호출
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"http://localhost:8006/users/{user_id}/wanted-services",
+                json=data,
+                headers={"Content-Type": "application/json"}
+            )
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(status_code=response.status_code, detail=response.text)
+                
+    except httpx.RequestError as e:
+        logger.error(f"❌ User Service 연결 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"User Service 연결 실패: {str(e)}")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ 사용자 원하는 서비스 설정 생성 실패: {e}")
         raise HTTPException(status_code=500, detail=f"서비스 설정 생성 실패: {str(e)}")
@@ -1145,7 +1199,17 @@ async def create_user_wanted_services(user_id: str, request: Request):
 async def get_user_wanted_services(user_id: str):
     """사용자 원하는 서비스 설정 조회"""
     try:
-        return await gateway.forward_request("user", "GET", f"/users/{user_id}/wanted-services", use_cache=True)
+        # 직접 User Service 호출
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"http://localhost:8006/users/{user_id}/wanted-services")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(status_code=response.status_code, detail=response.text)
+                
+    except httpx.RequestError as e:
+        logger.error(f"❌ User Service 연결 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"User Service 연결 실패: {str(e)}")
     except Exception as e:
         logger.error(f"❌ 사용자 원하는 서비스 설정 조회 실패: {e}")
         raise HTTPException(status_code=500, detail=f"서비스 설정 조회 실패: {str(e)}")
@@ -1155,14 +1219,24 @@ async def update_user_wanted_services(user_id: str, request: Request):
     """사용자 원하는 서비스 설정 수정"""
     try:
         data = await request.json()
-        result = await gateway.forward_request("user", "PUT", f"/users/{user_id}/wanted-services", data=data, use_cache=False)
         
-        # 캐시 무효화
-        cache_key = f"user_wanted_services_{user_id}"
-        if hasattr(gateway, 'cache') and gateway.cache:
-            gateway.cache.pop(cache_key, None)
-        
-        return result
+        # 직접 User Service 호출
+        async with httpx.AsyncClient() as client:
+            response = await client.put(
+                f"http://localhost:8006/users/{user_id}/wanted-services",
+                json=data,
+                headers={"Content-Type": "application/json"}
+            )
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(status_code=response.status_code, detail=response.text)
+                
+    except httpx.RequestError as e:
+        logger.error(f"❌ User Service 연결 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"User Service 연결 실패: {str(e)}")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ 사용자 원하는 서비스 설정 수정 실패: {e}")
         raise HTTPException(status_code=500, detail=f"서비스 설정 수정 실패: {str(e)}")

@@ -17,16 +17,41 @@ from typing import Dict, List, Optional
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 import uvicorn
-import requests
-import httpx
+
+try:
+    import requests
+except ImportError:
+    print("❌ requests 모듈이 설치되지 않았습니다. pip install requests를 실행하세요.")
+    sys.exit(1)
+
+try:
+    import httpx
+except ImportError:
+    print("❌ httpx 모듈이 설치되지 않았습니다. pip install httpx를 실행하세요.")
+    sys.exit(1)
 
 # 프로젝트 루트 추가
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
-from shared.database.mysql_client import get_mysql_client
-from shared.apis.telegram_api import TelegramBotClient
-from config.env_local import get_config
+try:
+    from shared.database.mysql_client import get_mysql_client
+    from config.env_local import get_config
+except ImportError as e:
+    print(f"❌ 모듈 임포트 실패: {e}")
+    print("프로젝트 루트 경로를 확인하세요.")
+    sys.exit(1)
+
+# Telegram API는 선택적으로 임포트
+try:
+    from shared.apis.telegram_api import TelegramBotClient
+    TELEGRAM_AVAILABLE = True
+except ImportError:
+    print("⚠️ Telegram API를 사용할 수 없습니다. 알림 기능이 비활성화됩니다.")
+    TELEGRAM_AVAILABLE = False
+    class TelegramBotClient:
+        async def send_message_async(self, message):
+            pass
 
 # FastAPI 앱 생성
 app = FastAPI(
@@ -42,7 +67,7 @@ class UserBasedOrchestrator:
     def __init__(self, config: Dict):
         self.config = config
         self.mysql_client = get_mysql_client()
-        self.telegram_bot = TelegramBotClient()
+        self.telegram_bot = TelegramBotClient() if TELEGRAM_AVAILABLE else TelegramBotClient()
         
         # 현재 관리 중인 사용자 ID
         self.current_user_id: Optional[str] = None

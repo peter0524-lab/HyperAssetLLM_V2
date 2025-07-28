@@ -1,7 +1,7 @@
 # type: ignore
 """
-MySQL 데이터베이스 클라이언트 모듈
-차트 패턴 데이터와 공시 데이터를 관리하는 MySQL 연결 및 쿼리 기능 제공
+개선된 MySQL 데이터베이스 클라이언트 모듈
+연결 풀 리소스 관리 및 안정성 개선
 """
 
 import pymysql
@@ -14,102 +14,368 @@ import json
 from contextlib import contextmanager
 import sys
 from pathlib import Path
+import threading
+import queue
+import time
+import weakref
+import atexit
+import signal
+import gc
+import asyncio
 
-# 프로젝트 루트 경로 추가 (stock_analysis_service)
-project_root = Path(__file__).parent.parent.parent  # shared/database -> shared -> stock_analysis_service
+# 프로젝트 루트 경로 추가
+project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
-# config 모듈 직접 import
 config_path = project_root / "config"
 sys.path.append(str(config_path))
 
 from env_local import get_env_var, get_int_env_var, get_bool_env_var, load_env_vars
-import asyncio
-import threading
-import queue
-import time
 
-# 환경 변수 로드 강제 실행
+# 환경 변수 로드
 load_env_vars()
 
 # 로깅 설정
 logger = logging.getLogger(__name__)
 
 
+class ConnectionWrapper:
+    """연결 래퍼 클래스 - 연결 상태 추적 및 자동 정리"""
+    
+    def __init__(self, connection, pool_ref):
+        self.connection = connection
+        self.pool_ref = pool_ref  # 약한 참조
+        self.created_at = time.time()
+        self.last_used = time.time()
+        self.is_in_use = False
+        self.use_count = 0
+    
+    def __getattr__(self, name):
+        """연결 객체의 속성/메서드 프록시"""
+        return getattr(self.connection, name)
+    
+    def mark_used(self):
+        """사용 시점 기록"""
+        self.last_used = time.time()
+        self.use_count += 1
+        self.is_in_use = True
+    
+    def mark_returned(self):
+        """반환 시점 기록"""
+        self.is_in_use = False
+    
+    def is_expired(self, max_age=1800):
+        """연결 만료 확인 (기본 30분으로 단축)"""
+        return (time.time() - self.created_at) > max_age
+    
+    def is_idle_too_long(self, max_idle=600):
+        """유휴 시간 초과 확인 (기본 10분으로 단축)"""
+        return not self.is_in_use and (time.time() - self.last_used) > max_idle
+
+
 class MySQLConnectionPool:
-    """PyMySQL 기반 연결 풀 구현"""
+    """개선된 PyMySQL 기반 연결 풀"""
     
-    def __init__(self, pool_size: int = 10, **connection_params):
-        self.pool_size = pool_size
+    def __init__(self, pool_size: int = 3, max_overflow: int = 2, **connection_params):
+        self.pool_size = min(pool_size, 3)  # 최대 3개로 제한
+        self.max_overflow = min(max_overflow, 2)  # overflow도 2개로 제한
         self.connection_params = connection_params
-        self.pool = queue.Queue(maxsize=pool_size)
-        self.lock = threading.Lock()
-        self._create_pool()
-    
-    def _create_pool(self):
-        """연결 풀 생성"""
-        for _ in range(self.pool_size):
-            try:
-                connection = pymysql.connect(**self.connection_params)
-                self.pool.put(connection)
-            except Exception as e:
-                logger.error(f"연결 풀 생성 실패: {e}")
-                raise
-    
-    def get_connection(self):
-        """연결 풀에서 연결 가져오기"""
+        self.pool = queue.Queue(maxsize=self.pool_size + self.max_overflow)
+        self.lock = threading.RLock()  # 재진입 가능한 락
+        self.active_connections = set()  # 활성 연결 추적
+        self.total_created = 0
+        self.is_closed = False
+        
+        # 정리 스레드
+        self.cleanup_thread = None
+        self.stop_cleanup = threading.Event()
+        
+        self._create_initial_pool()
+        self._start_cleanup_thread()
+        
+        # 프로그램 종료 시 정리
+        atexit.register(self.close_all)
         try:
-            connection = self.pool.get(timeout=10)  # 🔥 타임아웃 증가
-            
-            # 🔥 연결 상태 확인 강화
-            if not self._is_connection_alive(connection):
-                logger.warning("연결이 끊어짐, 새 연결 생성")
-                connection.close()  # 기존 연결 완전히 닫기
-                connection = pymysql.connect(**self.connection_params)
-            
-            return connection
-        except queue.Empty:
-            # 풀에 연결이 없다면 새로 생성 (임시 연결)
-            logger.warning("연결 풀 고갈, 임시 연결 생성")
-            return pymysql.connect(**self.connection_params)
+            signal.signal(signal.SIGTERM, self._signal_handler)
+            signal.signal(signal.SIGINT, self._signal_handler)
+        except ValueError:
+            # 메인 스레드가 아닌 경우 시그널 핸들러 등록 불가
+            pass
     
-    def return_connection(self, connection):
-        """연결을 풀에 반환"""
-        if connection:
+    def _signal_handler(self, signum, frame):
+        """시그널 핸들러"""
+        logger.info(f"시그널 {signum} 수신, 연결 풀 정리 중...")
+        self.close_all()
+    
+    def _create_initial_pool(self):
+        """초기 연결 풀 생성 - 더 보수적으로"""
+        initial_size = 1  # 초기에는 1개만 생성
+        
+        for i in range(initial_size):
             try:
-                if connection.open:
-                    # 연결이 정상이면 풀에 반환
-                    self.pool.put_nowait(connection)
+                conn_wrapper = self._create_connection()
+                if conn_wrapper:
+                    self.pool.put_nowait(conn_wrapper)
+                    logger.debug(f"초기 연결 {i+1}/{initial_size} 생성 완료")
+            except Exception as e:
+                logger.error(f"초기 연결 {i+1} 생성 실패: {e}")
+                if i == 0:  # 첫 번째 연결도 실패하면 에러
+                    raise
+    
+    def _create_connection(self) -> Optional[ConnectionWrapper]:
+        """새 연결 생성"""
+        try:
+            # 연결 파라미터 최적화 - 더 짧은 타임아웃
+            optimized_params = self.connection_params.copy()
+            optimized_params.update({
+                'connect_timeout': 15,      # 연결 타임아웃 단축
+                'read_timeout': 30,         # 읽기 타임아웃
+                'write_timeout': 30,        # 쓰기 타임아웃
+                'autocommit': True,
+                'charset': 'utf8mb4',
+                'use_unicode': True,
+                'sql_mode': 'STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO',
+                'init_command': "SET SESSION wait_timeout=1800, interactive_timeout=1800",  # 30분
+            })
+            
+            connection = pymysql.connect(**optimized_params)
+            wrapper = ConnectionWrapper(connection, weakref.ref(self))
+            
+            with self.lock:
+                self.total_created += 1
+                self.active_connections.add(wrapper)
+            
+            logger.debug(f"새 연결 생성 완료 (총 생성: {self.total_created})")
+            return wrapper
+            
+        except Exception as e:
+            logger.error(f"연결 생성 실패: {e}")
+            return None
+    
+    def get_connection(self, timeout=20):
+        """연결 풀에서 연결 가져오기 - 더 짧은 타임아웃"""
+        if self.is_closed:
+            raise RuntimeError("연결 풀이 닫혔습니다")
+        
+        start_time = time.time()
+        
+        try:
+            # 1. 풀에서 사용 가능한 연결 찾기
+            while time.time() - start_time < timeout:
+                try:
+                    wrapper = self.pool.get_nowait()
+                    
+                    # 연결 상태 확인
+                    if self._is_connection_valid(wrapper):
+                        wrapper.mark_used()
+                        logger.debug("풀에서 연결 가져옴")
+                        return wrapper
+                    else:
+                        # 유효하지 않은 연결 정리
+                        self._close_connection(wrapper)
+                        continue
+                        
+                except queue.Empty:
+                    break
+            
+            # 2. 새 연결 생성 (overflow 허용)
+            if self.total_created < (self.pool_size + self.max_overflow):
+                wrapper = self._create_connection()
+                if wrapper:
+                    wrapper.mark_used()
+                    logger.debug("새 연결 생성하여 반환")
+                    return wrapper
+            
+            # 3. 대기 (blocking) - 더 짧은 대기
+            logger.warning("연결 풀 고갈, 대기 중...")
+            try:
+                remaining_time = max(1, timeout - (time.time() - start_time))
+                wrapper = self.pool.get(timeout=remaining_time)
+                if self._is_connection_valid(wrapper):
+                    wrapper.mark_used()
+                    return wrapper
                 else:
-                    # 연결이 닫혔으면 완전히 닫기
-                    connection.close()
+                    self._close_connection(wrapper)
+                    raise queue.Empty()
+            except queue.Empty:
+                pass
+        
+        except Exception as e:
+            logger.error(f"연결 가져오기 실패: {e}")
+        
+        raise RuntimeError(f"연결 획득 실패 (timeout: {timeout}s)")
+    
+    def return_connection(self, wrapper):
+        """연결을 풀에 반환"""
+        if not wrapper or self.is_closed:
+            return
+        
+        try:
+            wrapper.mark_returned()
+            
+            # 연결 상태 확인
+            if not self._is_connection_valid(wrapper):
+                self._close_connection(wrapper)
+                return
+            
+            # 만료된 연결 정리
+            if wrapper.is_expired() or wrapper.is_idle_too_long():
+                logger.debug("만료된 연결 정리")
+                self._close_connection(wrapper)
+                return
+            
+            # 풀에 반환
+            try:
+                self.pool.put_nowait(wrapper)
+                logger.debug("연결 풀에 반환")
             except queue.Full:
                 # 풀이 가득 차면 연결 닫기
-                logger.warning("연결 풀 가득참, 연결 닫기")
-                connection.close()
-            except Exception as e:
-                # 예외 발생시 연결 닫기
-                logger.error(f"연결 반환 중 오류: {e}")
-                try:
-                    connection.close()
-                except:
-                    pass
-
-    def _is_connection_alive(self, connection):
-        """연결 상태 확인"""
+                logger.debug("풀 가득참, 연결 닫기")
+                self._close_connection(wrapper)
+                
+        except Exception as e:
+            logger.error(f"연결 반환 중 오류: {e}")
+            self._close_connection(wrapper)
+    
+    def _is_connection_valid(self, wrapper) -> bool:
+        """연결 유효성 검사"""
         try:
-            if not connection.open:
+            if not wrapper or not hasattr(wrapper, 'connection'):
                 return False
-            # ping으로 연결 상태 확인
+            
+            connection = wrapper.connection
+            if not connection or not connection.open:
+                return False
+            
+            # ping 테스트 (빠른 실패)
             connection.ping(reconnect=False)
             return True
+            
         except Exception as e:
-            logger.warning(f"연결 상태 확인 실패: {e}")
+            logger.debug(f"연결 유효성 검사 실패: {e}")
             return False
+    
+    def _close_connection(self, wrapper):
+        """연결 안전하게 닫기"""
+        try:
+            if wrapper and hasattr(wrapper, 'connection'):
+                with self.lock:
+                    self.active_connections.discard(wrapper)
+                
+                if wrapper.connection and wrapper.connection.open:
+                    wrapper.connection.close()
+                    logger.debug("연결 정리 완료")
+        except Exception as e:
+            logger.debug(f"연결 정리 중 오류 (무시됨): {e}")
+    
+    def _start_cleanup_thread(self):
+        """정리 스레드 시작"""
+        if self.cleanup_thread and self.cleanup_thread.is_alive():
+            return
+        
+        self.cleanup_thread = threading.Thread(
+            target=self._cleanup_worker,
+            name="MySQL-Pool-Cleanup",
+            daemon=True
+        )
+        self.cleanup_thread.start()
+        logger.debug("정리 스레드 시작됨")
+    
+    def _cleanup_worker(self):
+        """정리 작업자 스레드 - 더 자주 정리"""
+        while not self.stop_cleanup.wait(30):  # 30초마다 정리
+            try:
+                self._cleanup_expired_connections()
+                self._cleanup_memory()
+            except Exception as e:
+                logger.debug(f"정리 작업 중 오류: {e}")
+    
+    def _cleanup_expired_connections(self):
+        """만료된 연결 정리"""
+        expired_connections = []
+        
+        # 임시 리스트에 연결들 수집
+        temp_connections = []
+        while not self.pool.empty():
+            try:
+                wrapper = self.pool.get_nowait()
+                temp_connections.append(wrapper)
+            except queue.Empty:
+                break
+        
+        # 유효한 연결만 다시 풀에 넣기
+        for wrapper in temp_connections:
+            if wrapper.is_expired() or wrapper.is_idle_too_long() or not self._is_connection_valid(wrapper):
+                expired_connections.append(wrapper)
+            else:
+                try:
+                    self.pool.put_nowait(wrapper)
+                except queue.Full:
+                    expired_connections.append(wrapper)
+        
+        # 만료된 연결 정리
+        for wrapper in expired_connections:
+            self._close_connection(wrapper)
+        
+        if expired_connections:
+            logger.debug(f"만료된 연결 {len(expired_connections)}개 정리")
+    
+    def _cleanup_memory(self):
+        """메모리 정리"""
+        try:
+            gc.collect()
+        except Exception:
+            pass
+    
+    def get_stats(self) -> Dict:
+        """풀 통계 정보"""
+        with self.lock:
+            return {
+                'pool_size': self.pool_size,
+                'max_overflow': self.max_overflow,
+                'active_connections': len(self.active_connections),
+                'available_connections': self.pool.qsize(),
+                'total_created': self.total_created,
+                'is_closed': self.is_closed
+            }
+    
+    def close_all(self):
+        """모든 연결 정리"""
+        if self.is_closed:
+            return
+        
+        logger.info("연결 풀 정리 시작...")
+        self.is_closed = True
+        
+        # 정리 스레드 중단
+        if self.cleanup_thread:
+            self.stop_cleanup.set()
+            if self.cleanup_thread.is_alive():
+                self.cleanup_thread.join(timeout=5)
+        
+        # 풀의 모든 연결 정리
+        closed_count = 0
+        while not self.pool.empty():
+            try:
+                wrapper = self.pool.get_nowait()
+                self._close_connection(wrapper)
+                closed_count += 1
+            except queue.Empty:
+                break
+        
+        # 활성 연결 정리
+        with self.lock:
+            active_copy = self.active_connections.copy()
+            for wrapper in active_copy:
+                self._close_connection(wrapper)
+                closed_count += 1
+            self.active_connections.clear()
+        
+        logger.info(f"연결 풀 정리 완료: {closed_count}개 연결 닫음")
 
 
 class MySQLClient:
-    """MySQL 데이터베이스 클라이언트 클래스"""
+    """개선된 MySQL 데이터베이스 클라이언트"""
 
     def __init__(self, custom_config: Dict = None):
         """MySQL 연결 풀 초기화"""
@@ -128,33 +394,23 @@ class MySQLClient:
                 "charset": "utf8mb4",
                 "autocommit": True,
                 "cursorclass": pymysql.cursors.DictCursor,
-                # 🔥 타임아웃 설정 최적화 (더 긴 타임아웃)
-                "connect_timeout": 60,  # 연결 타임아웃 60초
-                "read_timeout": 60,     # 읽기 타임아웃 60초  
-                "write_timeout": 60,    # 쓰기 타임아웃 60초
-                "ssl_disabled": True,   # AWS RDS SSL 비활성화
-                # 🔥 연결 유지 설정 추가
-                "init_command": "SET SESSION wait_timeout=28800",  # 8시간
-                "sql_mode": "STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO",
-                # 🔥 재연결 설정
-                "ping_interval": 300,   # 5분마다 ping
+                "ssl_disabled": True,
             }
             
-            # custom_config가 전달되면 env_config을 덮어쓰기
             if custom_config:
                 env_config.update(custom_config)
-            config = env_config
-
-            # 🔥 연결 풀 크기 설정 최적화 (더 많은 연결 허용)
-            pool_size = min(10, max(5, get_int_env_var("DATABASE_CONNECTION_LIMIT", 5)))
             
-            # 연결 풀에서 사용하지 않는 설정 제거
-            pool_config = {k: v for k, v in config.items() if k not in ['pool_name', 'pool_size', 'pool_reset_session', 'ping_interval']}
+            # 연결 풀 설정 최적화 - 더 작은 풀
+            pool_size = min(2, get_int_env_var("DATABASE_CONNECTION_LIMIT", 2))  # 기본 2개
+            max_overflow = min(2, get_int_env_var("DATABASE_MAX_OVERFLOW", 2))  # overflow 2개
             
-            self.pool = MySQLConnectionPool(pool_size=pool_size, **pool_config)
-            logger.info(
-                f"MySQL 연결 풀 생성 완료: {config['host']}:{config['port']}/{config['database']}"
+            self.pool = MySQLConnectionPool(
+                pool_size=pool_size,
+                max_overflow=max_overflow,
+                **env_config
             )
+            
+            logger.info(f"MySQL 연결 풀 생성 완료: {env_config['host']}:{env_config['port']}/{env_config['database']} (pool_size={pool_size}, max_overflow={max_overflow})")
 
         except Exception as e:
             logger.error(f"MySQL 연결 풀 생성 실패: {e}")
@@ -163,14 +419,20 @@ class MySQLClient:
     @contextmanager
     def get_connection(self):
         """연결 풀에서 연결 가져오기 (컨텍스트 매니저)"""
+        if not self.pool:
+            raise RuntimeError("연결 풀이 초기화되지 않았습니다")
+        
         connection = None
         try:
-            connection = self.pool.get_connection()
+            connection = self.pool.get_connection(timeout=20)
             yield connection
         except Exception as e:
             logger.error(f"MySQL 연결 오류: {e}")
-            if connection:
-                connection.rollback()
+            if connection and hasattr(connection, 'rollback'):
+                try:
+                    connection.rollback()
+                except:
+                    pass
             raise
         finally:
             if connection:
@@ -180,29 +442,28 @@ class MySQLClient:
         self, query: str, params: Optional[tuple] = None, fetch: bool = True
     ) -> Optional[List[Dict]]:
         """쿼리 실행 및 결과 반환"""
-        try:
-            if not self.pool:
-                return None
-            
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute(query, params)
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                with self.get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(query, params)
 
-                if fetch:
-                    result = cursor.fetchall()
+                    if fetch:
+                        result = cursor.fetchall()
+                    else:
+                        conn.commit()
+                        result = [{"affected_rows": cursor.rowcount}]
+                    
                     cursor.close()
                     return result
-                else:
-                    conn.commit()
-                    affected_rows = cursor.rowcount
-                    cursor.close()
-                    return [{"affected_rows": affected_rows}]
 
-        except Exception as e:
-            logger.error(f"쿼리 실행 오류: {e}")
-            logger.error(f"쿼리: {query}")
-            logger.error(f"파라미터: {params}")
-            raise
+            except Exception as e:
+                logger.warning(f"쿼리 실행 실패 (시도 {attempt + 1}/{max_retries}): {e}")
+                if attempt == max_retries - 1:
+                    logger.error(f"쿼리 실행 최종 실패: {query}")
+                    raise
+                time.sleep(0.5 * (attempt + 1))  # 점진적 대기
 
     def execute_many(self, query: str, params_list: List[tuple]) -> Dict:
         """여러 행 일괄 삽입/업데이트"""
@@ -291,21 +552,49 @@ class MySQLClient:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.fetch_all, query, params)
 
+    def health_check(self) -> Dict:
+        """데이터베이스 상태 확인"""
+        try:
+            start_time = time.time()
+            
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT VERSION() as version, CONNECTION_ID() as conn_id")
+                result = cursor.fetchone()
+                cursor.close()
+
+                connection_time = time.time() - start_time
+                pool_stats = self.pool.get_stats() if self.pool else {}
+
+                return {
+                    "status": "healthy",
+                    "version": result.get('version', 'Unknown') if result else 'Unknown',
+                    "connection_id": result.get('conn_id', 0) if result else 0,
+                    "connection_time": f"{connection_time:.3f}s",
+                    "pool_stats": pool_stats,
+                    "timestamp": datetime.now().isoformat(),
+                }
+
+        except Exception as e:
+            logger.error(f"데이터베이스 상태 확인 실패: {e}")
+            return {
+                "status": "unhealthy",
+                "error": str(e),
+                "pool_stats": self.pool.get_stats() if self.pool else {},
+                "timestamp": datetime.now().isoformat(),
+            }
+
     async def close(self) -> None:
         """연결 풀 정리"""
         try:
             if self.pool:
-                logger.info("MySQL 연결 풀 정리 중...")
-                # 모든 연결 닫기
-                while not self.pool.pool.empty():
-                    conn = self.pool.pool.get_nowait()
-                    if conn and conn.open:
-                        conn.close()
-                logger.info("MySQL 연결 풀 정리 완료")
+                self.pool.close_all()
+                self.pool = None
+                logger.info("MySQL 클라이언트 정리 완료")
         except Exception as e:
-            logger.error(f"MySQL 연결 풀 정리 실패: {e}")
-            raise
+            logger.error(f"MySQL 클라이언트 정리 실패: {e}")
 
+    # === 기존 데이터베이스 메서드들 유지 ===
     def get_current_price_data(self, stock_code: str) -> Optional[Dict]:
         """현재 주가 데이터 조회"""
         query = """
@@ -512,39 +801,6 @@ class MySQLClient:
 
         return metrics
 
-    def health_check(self) -> Dict:
-        """데이터베이스 상태 확인"""
-        try:
-            start_time = time.time()
-            
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT VERSION()")
-                version_result = cursor.fetchone()
-                version = version_result.get('VERSION()', 'Unknown') if version_result else 'Unknown'
-                
-                cursor.execute("SELECT 1")
-                result = cursor.fetchone()
-                cursor.close()
-
-                connection_time = time.time() - start_time
-
-                return {
-                    "status": "healthy",
-                    "version": version,
-                    "connection_time": f"{connection_time:.3f}s",
-                    "connection_pool_size": self.pool.pool_size,
-                    "timestamp": datetime.now().isoformat(),
-                }
-
-        except Exception as e:
-            logger.error(f"데이터베이스 상태 확인 실패: {e}")
-            return {
-                "status": "unhealthy",
-                "error": str(e),
-                "timestamp": datetime.now().isoformat(),
-            }
-
 
 def init_database() -> None:
     """데이터베이스 초기화 - 테이블 생성"""
@@ -609,13 +865,38 @@ def init_database() -> None:
         raise
 
 
-# 전역 MySQL 클라이언트 인스턴스 (지연 초기화)
-mysql_client = None
+# 전역 클라이언트 인스턴스 (싱글톤 패턴)
+_mysql_client_instance = None
+_client_lock = threading.Lock()
 
 
 def get_mysql_client() -> MySQLClient:
-    """MySQL 클라이언트 인스턴스 반환 (지연 초기화)"""
-    global mysql_client
-    if mysql_client is None:
-        mysql_client = MySQLClient()
-    return mysql_client
+    """MySQL 클라이언트 인스턴스 반환 (싱글톤)"""
+    global _mysql_client_instance
+    
+    if _mysql_client_instance is None:
+        with _client_lock:
+            if _mysql_client_instance is None:
+                _mysql_client_instance = MySQLClient()
+    
+    return _mysql_client_instance
+
+
+def cleanup_mysql_client():
+    """전역 클라이언트 정리"""
+    global _mysql_client_instance
+    
+    if _mysql_client_instance:
+        with _client_lock:
+            if _mysql_client_instance:
+                try:
+                    loop = asyncio.get_event_loop()
+                    loop.create_task(_mysql_client_instance.close())
+                except RuntimeError:
+                    # 이벤트 루프가 없는 경우 동기적으로 정리
+                    _mysql_client_instance.pool.close_all()
+                _mysql_client_instance = None
+
+
+# 프로그램 종료 시 정리
+atexit.register(cleanup_mysql_client)

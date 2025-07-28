@@ -453,6 +453,47 @@ async def set_user_model(
         logger.error(f"❌ 사용자 모델 설정 실패: {e}")
         raise HTTPException(status_code=500, detail="모델 설정에 실패했습니다")
 
+@app.get("/users/{user_id}/model", response_model=ApiResponse)
+async def get_user_model(
+    user_id: str,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """사용자 모델 조회"""
+    try:
+        # 사용자 존재 확인
+        user_check = "SELECT user_id FROM user_profiles WHERE user_id = %s"
+        user_result = await db.execute_query_async(user_check, (user_id,), fetch=True)
+        
+        if not user_result:
+            raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다")
+        
+        # 모델 설정 조회
+        model_query = "SELECT model_type FROM user_model WHERE user_id = %s"
+        model_result = await db.execute_query_async(model_query, (user_id,), fetch=True)
+        
+        if model_result:
+            model_type = model_result[0]["model_type"]
+        else:
+            # 기본값 설정
+            model_type = "hyperclova"
+            # 기본 모델 설정 생성
+            insert_query = "INSERT INTO user_model (user_id, model_type) VALUES (%s, %s)"
+            await db.execute_query_async(insert_query, (user_id, model_type))
+        
+        logger.info(f"✅ 사용자 모델 조회 완료: {user_id} - {model_type}")
+        
+        return ApiResponse(
+            success=True,
+            data={"model_type": model_type},
+            message=f"사용자 모델 조회 완료: {user_id} -> {model_type}"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 사용자 모델 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail="모델 조회에 실패했습니다")
+
 # === 통합 설정 API ===
 
 @app.get("/users/{user_id}/config", response_model=ApiResponse)
