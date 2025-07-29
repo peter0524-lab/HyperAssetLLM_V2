@@ -22,7 +22,7 @@ from user_models import (
     UserProfileCreate, UserProfileUpdate, UserStockCreate, UserStockUpdate,
     UserModelCreate, UserConfigResponse, ApiResponse, ModelType,
     UserWantedServiceCreate, UserWantedServiceUpdate, UserWantedServiceResponse,
-    StockInfo, UserStocksBatch
+    StockInfo, UserStocksBatch, TelegramConfig, TelegramTest, TelegramConfigResponse
 )
 
 # FastAPI 앱 생성
@@ -854,6 +854,525 @@ async def get_user_config(
     except Exception as e:
         logger.error(f"❌ 사용자 종합 설정 조회 실패: {e}")
         raise HTTPException(status_code=500, detail="사용자 설정 조회에 실패했습니다")
+
+# === 텔레그램 설정 API ===
+
+@app.post("/users/{user_id}/telegram-config", response_model=ApiResponse)
+async def set_telegram_config(
+    user_id: str,
+    config: TelegramConfig,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """사용자 텔레그램 설정 저장"""
+    try:
+        # 사용자 존재 확인
+        user_check_query = "SELECT user_id FROM user_profiles WHERE user_id = %s"
+        user_result = await db.execute_query_async(user_check_query, (user_id,), fetch=True)
+        
+        if not user_result:
+            raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다")
+        
+        # 기존 설정 확인
+        check_query = "SELECT user_id FROM user_telegram_configs WHERE user_id = %s"
+        existing_config = await db.execute_query_async(check_query, (user_id,), fetch=True)
+        
+        if existing_config:
+            # 기존 설정 업데이트
+            update_query = """
+                UPDATE user_telegram_configs SET
+                    bot_token = %s, chat_id = %s, enabled = %s,
+                    news_alerts = %s, disclosure_alerts = %s, chart_alerts = %s,
+                    price_alerts = %s, weekly_reports = %s, error_alerts = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s
+            """
+            await db.execute_query_async(update_query, (
+                config.bot_token, config.chat_id, config.enabled,
+                config.news_alerts, config.disclosure_alerts, config.chart_alerts,
+                config.price_alerts, config.weekly_reports, config.error_alerts,
+                user_id
+            ))
+        else:
+            # 새 설정 생성
+            insert_query = """
+                INSERT INTO user_telegram_configs (
+                    user_id, bot_token, chat_id, enabled,
+                    news_alerts, disclosure_alerts, chart_alerts,
+                    price_alerts, weekly_reports, error_alerts
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            await db.execute_query_async(insert_query, (
+                user_id, config.bot_token, config.chat_id, config.enabled,
+                config.news_alerts, config.disclosure_alerts, config.chart_alerts,
+                config.price_alerts, config.weekly_reports, config.error_alerts
+            ))
+        
+        return ApiResponse(
+            success=True,
+            message="텔레그램 설정이 저장되었습니다",
+            data={"user_id": user_id}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"텔레그램 설정 저장 실패: {e}")
+        raise HTTPException(status_code=500, detail="텔레그램 설정 저장에 실패했습니다")
+
+@app.get("/users/{user_id}/telegram-config", response_model=ApiResponse)
+async def get_telegram_config(
+    user_id: str,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """사용자 텔레그램 설정 조회"""
+    try:
+        query = """
+            SELECT user_id, bot_token, chat_id, enabled,
+                   news_alerts, disclosure_alerts, chart_alerts,
+                   price_alerts, weekly_reports, error_alerts,
+                   created_at, updated_at
+            FROM user_telegram_configs 
+            WHERE user_id = %s
+        """
+        result = await db.execute_query_async(query, (user_id,), fetch=True)
+        
+        if result:
+            config_data = result[0]
+            return ApiResponse(
+                success=True,
+                message="텔레그램 설정을 조회했습니다",
+                data=config_data
+            )
+        else:
+            return ApiResponse(
+                success=True,
+                message="텔레그램 설정이 없습니다",
+                data=None
+            )
+            
+    except Exception as e:
+        logger.error(f"텔레그램 설정 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail="텔레그램 설정 조회에 실패했습니다")
+
+@app.post("/users/{user_id}/telegram-test", response_model=ApiResponse)
+async def test_telegram_connection(
+    user_id: str,
+    test_data: TelegramTest,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """텔레그램 연결 테스트"""
+    try:
+        from shared.apis.telegram_api import TelegramBotClient
+        from datetime import datetime
+        
+        # 테스트용 텔레그램 클라이언트 생성
+        test_client = TelegramBotClient()
+        test_client.bot_token = test_data.bot_token
+        test_client.chat_id = test_data.chat_id
+        
+        # 테스트 메시지 전송
+        test_message = f"""🔔 HyperAsset 텔레그램 연결 테스트
+
+안녕하세요! HyperAsset 텔레그램 알림 시스템입니다.
+
+📱 연결 정보:
+- 봇 토큰: {test_data.bot_token[:10]}...
+- 채팅 ID: {test_data.chat_id}
+- 테스트 시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+✅ 연결이 성공적으로 설정되었습니다!
+이제 빗썸 스타일의 실시간 주식 알림을 받으실 수 있습니다.
+
+📊 제공되는 알림:
+• 뉴스 알림 📰
+• 공시 알림 📢  
+• 차트 패턴 알림 📈
+• 가격 변동 알림 💹
+• 주간 보고서 📊
+
+💡 투자에 도움이 되는 알림을 받아보세요!"""
+
+        success = test_client.send_message(test_message)
+        
+        if success:
+            return ApiResponse(
+                success=True,
+                message="텔레그램 연결 테스트가 성공했습니다",
+                data={"test_result": "success"}
+            )
+        else:
+            return ApiResponse(
+                success=False,
+                message="텔레그램 연결 테스트에 실패했습니다",
+                data={"test_result": "failed"}
+            )
+            
+    except Exception as e:
+        logger.error(f"텔레그램 테스트 실패: {e}")
+        return ApiResponse(
+            success=False,
+            message=f"텔레그램 테스트 중 오류가 발생했습니다: {str(e)}",
+            data={"test_result": "error", "error": str(e)}
+        )
+
+# === 빗썸 스타일 텔레그램 채널 API ===
+
+@app.get("/users/{user_id}/telegram-channel", response_model=ApiResponse)
+async def get_telegram_channel_info(
+    user_id: str,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """텔레그램 채널 정보 조회"""
+    try:
+        query = """
+            SELECT * FROM telegram_channels 
+            WHERE is_active = TRUE
+            LIMIT 1
+        """
+        
+        result = await db.execute_query_async(query, fetch=True)
+        
+        if result:
+            channel_data = result[0]
+            return ApiResponse(
+                success=True,
+                message="텔레그램 채널 정보를 조회했습니다.",
+                data=channel_data
+            )
+        else:
+            return ApiResponse(
+                success=False,
+                message="활성 채널을 찾을 수 없습니다.",
+                data=None
+            )
+            
+    except Exception as e:
+        logger.error(f"텔레그램 채널 정보 조회 실패: {e}")
+        return ApiResponse(
+            success=False,
+            message=f"채널 정보 조회에 실패했습니다: {str(e)}"
+        )
+
+@app.get("/users/{user_id}/telegram-subscription", response_model=ApiResponse)
+async def get_telegram_subscription(
+    user_id: str,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """사용자 텔레그램 구독 설정 조회"""
+    try:
+        query = """
+            SELECT * FROM user_telegram_subscriptions 
+            WHERE user_id = %s
+        """
+        
+        result = await db.execute_query_async(query, (user_id,), fetch=True)
+        
+        if result:
+            subscription_data = result[0]
+            return ApiResponse(
+                success=True,
+                message="텔레그램 구독 설정을 조회했습니다.",
+                data=subscription_data
+            )
+        else:
+            # 기본 설정 반환
+            default_subscription = {
+                "user_id": user_id,
+                "channel_id": 1,
+                "news_alerts": True,
+                "disclosure_alerts": True,
+                "chart_alerts": True,
+                "price_alerts": True,
+                "weekly_reports": False,
+                "error_alerts": False,
+                "is_active": True
+            }
+            return ApiResponse(
+                success=True,
+                message="기본 텔레그램 구독 설정을 반환합니다.",
+                data=default_subscription
+            )
+            
+    except Exception as e:
+        logger.error(f"텔레그램 구독 설정 조회 실패: {e}")
+        return ApiResponse(
+            success=False,
+            message=f"구독 설정 조회에 실패했습니다: {str(e)}"
+        )
+
+@app.post("/users/{user_id}/telegram-subscription", response_model=ApiResponse)
+async def save_telegram_subscription(
+    user_id: str,
+    subscription_data: dict,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """사용자 텔레그램 구독 설정 저장"""
+    try:
+        query = """
+            INSERT INTO user_telegram_subscriptions 
+            (user_id, channel_id, news_alerts, disclosure_alerts, chart_alerts, 
+             price_alerts, weekly_reports, error_alerts, is_active, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            ON DUPLICATE KEY UPDATE
+            news_alerts = VALUES(news_alerts),
+            disclosure_alerts = VALUES(disclosure_alerts),
+            chart_alerts = VALUES(chart_alerts),
+            price_alerts = VALUES(price_alerts),
+            weekly_reports = VALUES(weekly_reports),
+            error_alerts = VALUES(error_alerts),
+            is_active = VALUES(is_active),
+            updated_at = NOW()
+        """
+        
+        await db.execute_query_async(query, (
+            user_id,
+            subscription_data.get('channel_id', 1),
+            subscription_data.get('news_alerts', True),
+            subscription_data.get('disclosure_alerts', True),
+            subscription_data.get('chart_alerts', True),
+            subscription_data.get('price_alerts', True),
+            subscription_data.get('weekly_reports', False),
+            subscription_data.get('error_alerts', False),
+            subscription_data.get('is_active', True)
+        ))
+            
+        return ApiResponse(
+            success=True,
+            message="텔레그램 구독 설정이 저장되었습니다.",
+            data={"user_id": user_id}
+        )
+        
+    except Exception as e:
+        logger.error(f"텔레그램 구독 설정 저장 실패: {e}")
+        return ApiResponse(
+            success=False,
+            message=f"구독 설정 저장에 실패했습니다: {str(e)}"
+        )
+
+@app.post("/users/{user_id}/telegram-test-channel", response_model=ApiResponse)
+async def test_telegram_channel_connection(
+    user_id: str,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """텔레그램 채널 연결 테스트"""
+    try:
+        from services.telegram_channel_service.telegram_channel_service import TelegramChannelService
+        
+        # 채널 서비스로 테스트 메시지 전송
+        channel_service = TelegramChannelService()
+        success = await channel_service.test_channel_connection()
+        
+        if success:
+            return ApiResponse(
+                success=True,
+                message="텔레그램 채널 연결 테스트가 성공했습니다.",
+                data={"test_result": "success"}
+            )
+        else:
+            return ApiResponse(
+                success=False,
+                message="텔레그램 채널 연결 테스트에 실패했습니다.",
+                data={"test_result": "failed"}
+            )
+            
+    except Exception as e:
+        logger.error(f"텔레그램 채널 연결 테스트 실패: {e}")
+        return ApiResponse(
+            success=False,
+            message=f"채널 연결 테스트에 실패했습니다: {str(e)}"
+        )
+
+@app.post("/users/{user_id}/send-telegram-notification", response_model=ApiResponse)
+async def send_telegram_notification(
+    user_id: str,
+    notification_data: dict,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """실제 텔레그램 채널에 알림 전송 (빗썸 스타일)"""
+    try:
+        from services.telegram_channel_service.telegram_channel_service import TelegramChannelService
+        from datetime import datetime
+        
+        # 사용자 정보 조회
+        user_query = "SELECT username FROM user_profiles WHERE user_id = %s"
+        user_result = await db.execute_query_async(user_query, (user_id,), fetch=True)
+        username = user_result[0].get('username', '사용자') if user_result else '사용자'
+        
+        # 알림 메시지 생성
+        notification_type = notification_data.get('type', 'general')
+        message_content = notification_data.get('message', '')
+        
+        # 빗썸 스타일 메시지 포맷팅
+        if notification_type == 'welcome':
+            message = f"""
+🎉 {username}님, HyperAsset 텔레그램 알림에 오신 것을 환영합니다!
+
+📱 이제 실시간 주식 알림을 받으실 수 있습니다:
+• 📰 실시간 뉴스 알림
+• 📢 중요 공시 정보  
+• 📊 차트 패턴 분석
+• 💰 가격 변동 알림
+
+🔗 채널 바로가기: https://t.me/HyperAssetAlerts
+            """.strip()
+        else:
+            message = message_content
+        
+        # 채널 서비스로 메시지 전송
+        channel_service = TelegramChannelService()
+        success = await channel_service.send_channel_message(message, notification_type)
+        
+        if success:
+            return ApiResponse(
+                success=True,
+                message="텔레그램 알림이 성공적으로 전송되었습니다.",
+                data={
+                    "user_id": user_id,
+                    "username": username,
+                    "notification_type": notification_type,
+                    "sent_at": datetime.now().isoformat()
+                }
+            )
+        else:
+            return ApiResponse(
+                success=False,
+                message="텔레그램 알림 전송에 실패했습니다.",
+                data={"error": "channel_send_failed"}
+            )
+            
+    except Exception as e:
+        logger.error(f"텔레그램 알림 전송 실패: {e}")
+        return ApiResponse(
+            success=False,
+            message=f"알림 전송에 실패했습니다: {str(e)}"
+        )
+
+@app.post("/users/{user_id}/telegram-welcome", response_model=ApiResponse)
+async def send_telegram_welcome_message(
+    user_id: str,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """사용자 환영 메시지 전송"""
+    return await send_telegram_notification(
+        user_id=user_id,
+        notification_data={"type": "welcome", "message": ""},
+        db=db
+    )
+
+@app.post("/users/{user_id}/send-simple-telegram", response_model=ApiResponse)
+async def send_simple_telegram_notification(
+    user_id: str,
+    notification_data: dict,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """간단한 텔레그램 알림 전송 (기존 API 활용)"""
+    try:
+        from services.telegram_notification_service.telegram_notification_service import TelegramNotificationService
+        from datetime import datetime
+        
+        # 사용자 정보 조회
+        user_query = "SELECT username FROM user_profiles WHERE user_id = %s"
+        user_result = await db.execute_query_async(user_query, (user_id,), fetch=True)
+        username = user_result[0].get('username', '사용자') if user_result else '사용자'
+        
+        # 알림 서비스 초기화
+        notification_service = TelegramNotificationService()
+        
+        # 알림 유형에 따른 처리
+        notification_type = notification_data.get('type', 'general')
+        message_content = notification_data.get('message', '')
+        
+        success = False
+        
+        if notification_type == 'welcome':
+            success = notification_service.send_welcome_message(username)
+        elif notification_type == 'test':
+            success = notification_service.send_test_message()
+        else:
+            success = notification_service.send_custom_message(message_content, notification_type)
+        
+        if success:
+            return ApiResponse(
+                success=True,
+                message="텔레그램 알림이 성공적으로 전송되었습니다.",
+                data={
+                    "user_id": user_id,
+                    "username": username,
+                    "notification_type": notification_type,
+                    "sent_at": datetime.now().isoformat()
+                }
+            )
+        else:
+            return ApiResponse(
+                success=False,
+                message="텔레그램 알림 전송에 실패했습니다.",
+                data={"error": "message_send_failed"}
+            )
+            
+    except Exception as e:
+        logger.error(f"텔레그램 알림 전송 실패: {e}")
+        return ApiResponse(
+            success=False,
+            message=f"알림 전송에 실패했습니다: {str(e)}"
+        )
+
+@app.post("/users/{user_id}/telegram-welcome-simple", response_model=ApiResponse)
+async def send_simple_telegram_welcome_message(
+    user_id: str,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """간단한 환영 메시지 전송"""
+    try:
+        from services.telegram_notification_service.telegram_notification_service import TelegramNotificationService
+        from datetime import datetime
+        
+        # 사용자 정보 조회
+        user_query = "SELECT username FROM user_profiles WHERE user_id = %s"
+        user_result = await db.execute_query_async(user_query, (user_id,), fetch=True)
+        username = user_result[0].get('username', '사용자') if user_result else '사용자'
+        
+        # 알림 서비스 초기화
+        notification_service = TelegramNotificationService()
+        
+        # 환영 메시지 전송
+        success = notification_service.send_welcome_message(username)
+        
+        if success:
+            return ApiResponse(
+                success=True,
+                message="환영 메시지가 성공적으로 전송되었습니다.",
+                data={
+                    "user_id": user_id,
+                    "username": username,
+                    "notification_type": "welcome",
+                    "sent_at": datetime.now().isoformat()
+                }
+            )
+        else:
+            return ApiResponse(
+                success=False,
+                message="환영 메시지 전송에 실패했습니다.",
+                data={"error": "message_send_failed"}
+            )
+            
+    except Exception as e:
+        logger.error(f"환영 메시지 전송 실패: {e}")
+        return ApiResponse(
+            success=False,
+            message=f"환영 메시지 전송에 실패했습니다: {str(e)}"
+        )
+
+@app.post("/users/{user_id}/telegram-test-simple", response_model=ApiResponse)
+async def send_simple_telegram_test_message(
+    user_id: str,
+    db: MySQLClient = Depends(get_mysql_client)
+):
+    """간단한 테스트 메시지 전송"""
+    return await send_simple_telegram_notification(
+        user_id=user_id,
+        notification_data={"type": "test", "message": ""},
+        db=db
+    )
 
 @app.get("/health")
 async def health_check():

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:with-backend": "concurrently \"npm run start-backend\" \"npm run dev\"",
-    "start-backend": "cd .. && python3 server_starter.py",
+    "start-backend": "cd .. && python simple_server_starter.py",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

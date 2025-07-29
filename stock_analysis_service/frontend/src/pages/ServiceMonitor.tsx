@@ -52,7 +52,7 @@ const ServiceMonitor = () => {
   // 서비스 목록 정의
   const serviceDefinitions = [
     { name: "Simple Server Starter", port: 9998, icon: "🚀" },
-    { name: "Server Starter", port: 9999, icon: "📡" },
+            { name: "Simple Server Starter", port: 9998, icon: "📡" },
     { name: "Orchestrator", port: 8000, icon: "🎯" },
     { name: "News Service", port: 8001, icon: "📰" },
     { name: "Disclosure Service", port: 8002, icon: "📋" },

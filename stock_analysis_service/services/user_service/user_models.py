@@ -150,6 +150,45 @@ class UserWantedServiceResponse(BaseModel):
             }
         }
 
+class TelegramConfig(BaseModel):
+    """텔레그램 설정 모델"""
+    bot_token: str = Field(..., min_length=1, description="텔레그램 봇 토큰")
+    chat_id: str = Field(..., min_length=1, description="텔레그램 채팅 ID")
+    enabled: bool = Field(default=True, description="텔레그램 알림 활성화")
+    news_alerts: bool = Field(default=True, description="뉴스 알림 활성화")
+    disclosure_alerts: bool = Field(default=True, description="공시 알림 활성화")
+    chart_alerts: bool = Field(default=True, description="차트 알림 활성화")
+    price_alerts: bool = Field(default=True, description="가격 알림 활성화")
+    weekly_reports: bool = Field(default=False, description="주간 보고서 활성화")
+    error_alerts: bool = Field(default=False, description="에러 알림 활성화")
+    
+    @validator('bot_token')
+    def validate_bot_token(cls, v):
+        """봇 토큰 형식 검증"""
+        if ':' not in v:
+            raise ValueError('봇 토큰은 올바른 형식이어야 합니다 (예: 1234567890:ABCdefGHIjklMNOpqrsTUVwxyz)')
+        return v
+
+class TelegramTest(BaseModel):
+    """텔레그램 테스트 모델"""
+    bot_token: str = Field(..., description="테스트용 봇 토큰")
+    chat_id: str = Field(..., description="테스트용 채팅 ID")
+
+class TelegramConfigResponse(BaseModel):
+    """텔레그램 설정 응답 모델"""
+    user_id: str
+    bot_token: str
+    chat_id: str
+    enabled: bool
+    news_alerts: bool
+    disclosure_alerts: bool
+    chart_alerts: bool
+    price_alerts: bool
+    weekly_reports: bool
+    error_alerts: bool
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
 class ApiResponse(BaseModel):
     """API 응답 공통 모델"""
     success: bool

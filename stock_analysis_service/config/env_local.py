@@ -83,10 +83,10 @@ DEFAULT_ENV_VARS: Dict[str, Any] = {
     "KIS_PAPER_TRADING": False,  # 실전투자 사용
     # 텔레그램 봇 설정
     #TELEGRAM_BOT_TOKEN": "8019204369:AAH343PfdI_JKnr12OB3wafHYb-nNfNaWnM",
-    "TELEGRAM_BOT_TOKEN": "7804706615:AAF_1WH5LZFa5mWktH3CZiHHKf98WRp4Buo",
-    #"TELEGRAM_BOT_TOKEN": "7888091225:AAHMqbCQV4_so7VqDeLqbWaiGTvVyQ698-M",
-    #"TELEGRAM_CHAT_ID":"-4950321224",  # 그룹 채팅 ID
-    "TELEGRAM_CHAT_ID": "-1002263561615",
+    #"TELEGRAM_BOT_TOKEN": "7804706615:AAF_1WH5LZFa5mWktH3CZiHHKf98WRp4Buo",
+    "TELEGRAM_BOT_TOKEN": "7888091225:AAHMqbCQV4_so7VqDeLqbWaiGTvVyQ698-M",
+    #"TELEGRAM_CHAT_ID":"-4950321224",  그룹 채팅 ID 
+    "TELEGRAM_CHAT_ID": "-1002819230740",  # 그룹 채팅 ID
     #"TELEGRAM_CHAT_ID": "6173086855",
     
     "TELEGRAM_PARSE_MODE": "HTML",
@@ -301,7 +301,7 @@ def get_config() -> Dict[str, Any]:
             "bot_token": get_env_var(
                 "TELEGRAM_BOT_TOKEN", "7804706615:AAF_1WH5LZFa5mWktH3CZiHHKf98WRp4Buo"
             ),
-            "chat_id": get_env_var("TELEGRAM_CHAT_ID", "-1002263561615"),
+            "chat_id": get_env_var("TELEGRAM_CHAT_ID", "-1002819230740"),
             "parse_mode": get_env_var("TELEGRAM_PARSE_MODE", "HTML"),
         },
         # 임베딩 모델 설정

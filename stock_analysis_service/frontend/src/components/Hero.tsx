@@ -63,7 +63,7 @@ const Hero = () => {
       
       // 3단계: 최종 완료
       console.log("🎉 3단계: 모든 서비스 시작 완료!");
-      console.log("✅ Server Starter (포트 9999) - 실행됨");
+      console.log("✅ Simple Server Starter (포트 9998) - 실행됨");
       console.log("✅ API Gateway (포트 8005) - 실행됨");
       console.log("✅ User Service (포트 8006) - 실행됨");
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

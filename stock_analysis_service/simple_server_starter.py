@@ -90,7 +90,7 @@ class ServerStarterHandler(BaseHTTPRequestHandler):
             logger.info("🚀 모든 서비스 시작 프로세스 시작")
             logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             
-            # 1. Server Starter 시작 (포트 9999)
+            # 1. Server Starter 시작 (포트 9999) - 실제로는 server_starter.py
             logger.info("📡 Server Starter 시작 중...")
             self._start_server_starter()
             time.sleep(3)
@@ -147,6 +147,7 @@ class ServerStarterHandler(BaseHTTPRequestHandler):
             logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             logger.info("🎉 모든 서비스 시작 완료!")
             logger.info("📋 시작된 서비스 목록:")
+            logger.info("   - Simple Server Starter (포트 9998)")
             logger.info("   - Server Starter (포트 9999)")
             logger.info("   - API Gateway (포트 8005)")
             logger.info("   - User Service (포트 8006)")
