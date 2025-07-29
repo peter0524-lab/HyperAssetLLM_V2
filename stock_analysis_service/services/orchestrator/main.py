@@ -403,7 +403,7 @@ class UserBasedOrchestrator:
         
         for service_name in list(self.services.keys()):
             await self.stop_service(service_name)
-        
+
         # 사용자 컨텍스트 초기화
         self.current_user_id = None
         self.active_services = []

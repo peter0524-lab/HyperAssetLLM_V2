@@ -399,7 +399,7 @@ class MySQLClient:
             
             if custom_config:
                 env_config.update(custom_config)
-            
+
             # 연결 풀 설정 최적화 - 더 작은 풀
             pool_size = min(2, get_int_env_var("DATABASE_CONNECTION_LIMIT", 2))  # 기본 2개
             max_overflow = min(2, get_int_env_var("DATABASE_MAX_OVERFLOW", 2))  # overflow 2개
@@ -462,8 +462,8 @@ class MySQLClient:
                 logger.warning(f"쿼리 실행 실패 (시도 {attempt + 1}/{max_retries}): {e}")
                 if attempt == max_retries - 1:
                     logger.error(f"쿼리 실행 최종 실패: {query}")
-                    raise
-                time.sleep(0.5 * (attempt + 1))  # 점진적 대기
+                raise
+            time.sleep(0.5 * (attempt + 1))  # 점진적 대기
 
     def execute_many(self, query: str, params_list: List[tuple]) -> Dict:
         """여러 행 일괄 삽입/업데이트"""

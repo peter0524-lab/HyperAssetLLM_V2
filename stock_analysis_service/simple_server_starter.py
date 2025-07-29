@@ -87,23 +87,80 @@ class ServerStarterHandler(BaseHTTPRequestHandler):
     def _start_servers_background(self):
         """백그라운드에서 서버들을 시작"""
         try:
+            logger.info("🚀 모든 서비스 시작 프로세스 시작")
+            logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            
+            # 1. Server Starter 시작 (포트 9999)
             logger.info("📡 Server Starter 시작 중...")
             self._start_server_starter()
+            time.sleep(3)
+            logger.info("✅ Server Starter 시작 완료")
             
-            time.sleep(3)  # Server Starter가 완전히 시작될 때까지 대기
-            
+            # 2. API Gateway 시작 (포트 8005)
             logger.info("🌐 API Gateway 시작 중...")
             self._start_api_gateway()
+            time.sleep(3)
+            logger.info("✅ API Gateway 시작 완료")
             
-            time.sleep(2)  # API Gateway가 시작될 때까지 대기
-            
+            # 3. User Service 시작 (포트 8006)
             logger.info("👤 User Service 시작 중...")
             self._start_user_service()
+            time.sleep(3)
+            logger.info("✅ User Service 시작 완료")
             
-            logger.info("✅ 모든 서버 시작 완료!")
+            # 4. Orchestrator 시작 (포트 8000)
+            logger.info("🎯 Orchestrator 시작 중...")
+            self._start_orchestrator()
+            time.sleep(4)
+            logger.info("✅ Orchestrator 시작 완료")
+            
+            # 5. News Service 시작 (포트 8001)
+            logger.info("📰 News Service 시작 중...")
+            self._start_news_service()
+            time.sleep(3)
+            logger.info("✅ News Service 시작 완료")
+            
+            # 6. Disclosure Service 시작 (포트 8002)
+            logger.info("📋 Disclosure Service 시작 중...")
+            self._start_disclosure_service()
+            time.sleep(3)
+            logger.info("✅ Disclosure Service 시작 완료")
+            
+            # 7. Report Service 시작 (포트 8004)
+            logger.info("📊 Report Service 시작 중...")
+            self._start_report_service()
+            time.sleep(3)
+            logger.info("✅ Report Service 시작 완료")
+            
+            # 8. Chart Service 시작 (포트 8003)
+            logger.info("📈 Chart Service 시작 중...")
+            self._start_chart_service()
+            time.sleep(3)
+            logger.info("✅ Chart Service 시작 완료")
+            
+            # 9. Flow Analysis Service 시작 (포트 8010)
+            logger.info("💰 Flow Analysis Service 시작 중...")
+            self._start_flow_analysis_service()
+            time.sleep(3)
+            logger.info("✅ Flow Analysis Service 시작 완료")
+            
+            logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            logger.info("🎉 모든 서비스 시작 완료!")
+            logger.info("📋 시작된 서비스 목록:")
+            logger.info("   - Server Starter (포트 9999)")
+            logger.info("   - API Gateway (포트 8005)")
+            logger.info("   - User Service (포트 8006)")
+            logger.info("   - Orchestrator (포트 8000)")
+            logger.info("   - News Service (포트 8001)")
+            logger.info("   - Disclosure Service (포트 8002)")
+            logger.info("   - Report Service (포트 8004)")
+            logger.info("   - Chart Service (포트 8003)")
+            logger.info("   - Flow Analysis Service (포트 8010)")
+            logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             
         except Exception as e:
             logger.error(f"백그라운드 서버 시작 에러: {e}")
+            logger.error(f"에러 상세: {str(e)}")
 
     def _start_server_starter(self):
         """Server Starter 시작"""
@@ -152,6 +209,102 @@ class ServerStarterHandler(BaseHTTPRequestHandler):
             start_new_session=True
         )
         logger.info("👤 User Service 시작됨")
+
+    def _start_orchestrator(self):
+        """Orchestrator 시작"""
+        cmd = [
+            sys.executable, 
+            str(PROJECT_ROOT / "services" / "orchestrator" / "main.py")
+        ]
+        
+        subprocess.Popen(
+            cmd,
+            cwd=PROJECT_ROOT / "services" / "orchestrator",
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+        logger.info("🎯 Orchestrator 시작됨")
+
+    def _start_news_service(self):
+        """News Service 시작"""
+        cmd = [
+            sys.executable, 
+            str(PROJECT_ROOT / "services" / "news_service" / "main.py")
+        ]
+        
+        subprocess.Popen(
+            cmd,
+            cwd=PROJECT_ROOT / "services" / "news_service",
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+        logger.info("📰 News Service 시작됨")
+
+    def _start_disclosure_service(self):
+        """Disclosure Service 시작"""
+        cmd = [
+            sys.executable, 
+            str(PROJECT_ROOT / "services" / "disclosure_service" / "disclosure_service.py")
+        ]
+        
+        subprocess.Popen(
+            cmd,
+            cwd=PROJECT_ROOT / "services" / "disclosure_service",
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+        logger.info("📋 Disclosure Service 시작됨")
+
+    def _start_report_service(self):
+        """Report Service 시작"""
+        cmd = [
+            sys.executable, 
+            str(PROJECT_ROOT / "services" / "report_service" / "report_service.py")
+        ]
+        
+        subprocess.Popen(
+            cmd,
+            cwd=PROJECT_ROOT / "services" / "report_service",
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+        logger.info("📊 Report Service 시작됨")
+
+    def _start_chart_service(self):
+        """Chart Service 시작"""
+        cmd = [
+            sys.executable, 
+            str(PROJECT_ROOT / "services" / "chart_service" / "chart_service.py")
+        ]
+        
+        subprocess.Popen(
+            cmd,
+            cwd=PROJECT_ROOT / "services" / "chart_service",
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+        logger.info("📈 Chart Service 시작됨")
+
+    def _start_flow_analysis_service(self):
+        """Flow Analysis Service 시작"""
+        cmd = [
+            sys.executable, 
+            str(PROJECT_ROOT / "services" / "flow_analysis_service" / "flow_analysis_service.py")
+        ]
+        
+        subprocess.Popen(
+            cmd,
+            cwd=PROJECT_ROOT / "services" / "flow_analysis_service",
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+        logger.info("💰 Flow Analysis Service 시작됨")
 
 def run_server(port=9998):
     """HTTP 서버 실행"""

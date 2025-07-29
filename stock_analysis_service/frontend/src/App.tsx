@@ -12,6 +12,7 @@ import Contact from "./pages/Contact";
 import Auth from "./pages/Auth";
 import ModelSelection from "./pages/ModelSelection";
 import ServiceActivation from "./pages/ServiceActivation";
+import ServiceMonitor from "./pages/ServiceMonitor";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -39,6 +40,7 @@ const App = () => (
           <Route path="/service-activation" element={<ServiceActivation />} />
           <Route path="/results" element={<Results />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/service-monitor" element={<ServiceMonitor />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

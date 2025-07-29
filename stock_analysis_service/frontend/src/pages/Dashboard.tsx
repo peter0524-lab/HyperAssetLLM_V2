@@ -141,7 +141,7 @@ const Dashboard = () => {
             <div className="flex justify-center items-center gap-4 mb-6">
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900">
                 {viewMode === 'dashboard' ? '📊 투자 대시보드' : '🖥️ 서비스 모니터'}
-              </h1>
+            </h1>
               
               {/* 뷰 모드 전환 버튼 */}
               <div className="flex bg-gray-100 rounded-lg p-1">
@@ -217,10 +217,10 @@ const Dashboard = () => {
           ) : (
             // 기존 대시보드 뷰
             <div>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              
-              {/* 왼쪽 컬럼: 빠른 실행 & 포트폴리오 */}
-              <div className="lg:col-span-1 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            {/* 왼쪽 컬럼: 빠른 실행 & 포트폴리오 */}
+            <div className="lg:col-span-1 space-y-6">
               
               {/* 빠른 분석 실행 */}
               <Card>
@@ -255,50 +255,50 @@ const Dashboard = () => {
                     {userWantedServices?.success && userWantedServices?.data && (
                       <>
                         {userWantedServices.data.news_service && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => executeNewsMutation.mutate()}
-                            disabled={executeNewsMutation.isPending}
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => executeNewsMutation.mutate()}
+                      disabled={executeNewsMutation.isPending}
                             className="flex flex-col items-center py-3 h-auto"
-                          >
+                    >
                             <span className="text-lg mb-1">📰</span>
                             <span className="text-xs">뉴스 즉시 실행해보기</span>
-                          </Button>
+                    </Button>
                         )}
                         
                         {userWantedServices.data.chart_service && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => executeChartMutation.mutate()}
-                            disabled={executeChartMutation.isPending}
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => executeChartMutation.mutate()}
+                      disabled={executeChartMutation.isPending}
                             className="flex flex-col items-center py-3 h-auto"
-                          >
+                    >
                             <span className="text-lg mb-1">📈</span>
                             <span className="text-xs">차트 즉시 실행해보기</span>
-                          </Button>
+                    </Button>
                         )}
                         
                         {userWantedServices.data.disclosure_service && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => executeDisclosureMutation.mutate()}
-                            disabled={executeDisclosureMutation.isPending}
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => executeDisclosureMutation.mutate()}
+                      disabled={executeDisclosureMutation.isPending}
                             className="flex flex-col items-center py-3 h-auto"
-                          >
+                    >
                             <span className="text-lg mb-1">📋</span>
                             <span className="text-xs">공시 즉시 실행해보기</span>
-                          </Button>
+                    </Button>
                         )}
                         
                         {userWantedServices.data.flow_service && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => executeFlowMutation.mutate()}
-                            disabled={executeFlowMutation.isPending}
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => executeFlowMutation.mutate()}
+                      disabled={executeFlowMutation.isPending}
                             className="flex flex-col items-center py-3 h-auto"
                           >
                             <span className="text-lg mb-1">💰</span>
@@ -338,7 +338,7 @@ const Dashboard = () => {
                               onClick={() => navigate('/profile')}
                             >
                               서비스 설정하기
-                            </Button>
+                    </Button>
                           </div>
                         )}
                       </div>
@@ -425,15 +425,15 @@ const Dashboard = () => {
                   />
                 </CardContent>
               </Card>
-              </div>
             </div>
+          </div>
 
-            {/* 개발 예정 기능들 */}
-            <DevelopmentFeatures />
+          {/* 개발 예정 기능들 */}
+          <DevelopmentFeatures />
           </div>
         )}
-      </div>
-    </section>
+        </div>
+      </section>
 
       <Footer />
     </div>
