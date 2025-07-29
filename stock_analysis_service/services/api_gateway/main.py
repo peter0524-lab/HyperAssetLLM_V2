@@ -1799,5 +1799,155 @@ async def start_selected_services(request_data: Dict[str, Any]):
         logger.error(f"❌ 선택된 서비스 시작 실패: {e}")
         raise HTTPException(status_code=500, detail=f"서비스 시작 실패: {str(e)}")
 
+@app.get("/api/monitoring/services-status")
+async def get_detailed_services_status():
+    """상세 서비스 상태 확인 - 포트 상태와 서비스 실행 상태 구분"""
+    try:
+        logger.info("🔍 상세 서비스 상태 확인 요청")
+        
+        # 서비스 정의
+        services = [
+            {"name": "Simple Server Starter", "port": 9998},
+            {"name": "Server Starter", "port": 9999},
+            {"name": "Orchestrator", "port": 8000},
+            {"name": "News Service", "port": 8001},
+            {"name": "Disclosure Service", "port": 8002},
+            {"name": "Chart Service", "port": 8003},
+            {"name": "Report Service", "port": 8004},
+            {"name": "API Gateway", "port": 8005},
+            {"name": "User Service", "port": 8006},
+            {"name": "Flow Analysis Service", "port": 8010}
+        ]
+        
+        detailed_status = []
+        
+        for service in services:
+            service_name = service["name"]
+            port = service["port"]
+            
+            # 1. 포트 열림 상태 확인
+            port_open = await check_port_open(port)
+            
+            # 2. 서비스 헬스체크
+            health_status = await check_service_health(port)
+            
+            # 3. 응답 시간 측정
+            response_time = await measure_response_time(port)
+            
+            status = {
+                "name": service_name,
+                "port": port,
+                "portOpen": port_open,
+                "serviceRunning": port_open,  # 포트가 열려있으면 서비스 실행 중으로 간주
+                "healthCheck": health_status["healthy"],
+                "responseTime": response_time,
+                "lastCheck": datetime.now().isoformat(),
+                "error": health_status.get("error"),
+                "uptime": health_status.get("uptime", "Unknown")
+            }
+            
+            detailed_status.append(status)
+            logger.info(f"✅ {service_name} 상태 확인 완료: 포트={port_open}, 헬스={health_status['healthy']}")
+        
+        # 전체 메트릭 계산
+        total_services = len(detailed_status)
+        running_services = sum(1 for s in detailed_status if s["serviceRunning"])
+        healthy_services = sum(1 for s in detailed_status if s["healthCheck"])
+        avg_response_time = sum(s["responseTime"] for s in detailed_status if s["responseTime"]) / len([s for s in detailed_status if s["responseTime"]]) if detailed_status else 0
+        
+        metrics = {
+            "totalServices": total_services,
+            "runningServices": running_services,
+            "healthyServices": healthy_services,
+            "avgResponseTime": round(avg_response_time, 2)
+        }
+        
+        logger.info(f"📊 전체 메트릭: {healthy_services}/{total_services} 정상, 평균 응답시간: {avg_response_time:.0f}ms")
+        
+        return {
+            "success": True,
+            "services": detailed_status,
+            "metrics": metrics,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ 서비스 상태 확인 실패: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "services": [],
+            "metrics": {
+                "totalServices": 0,
+                "runningServices": 0,
+                "healthyServices": 0,
+                "avgResponseTime": 0
+            }
+        }
+
+async def check_port_open(port: int) -> bool:
+    """포트 열림 상태 확인"""
+    try:
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        result = sock.connect_ex(('localhost', port))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
+
+async def check_service_health(port: int) -> dict:
+    """서비스 헬스체크"""
+    try:
+        start_time = time.time()
+        
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"http://localhost:{port}/health")
+            
+        end_time = time.time()
+        response_time = round((end_time - start_time) * 1000, 2)  # ms
+        
+        if response.status_code == 200:
+            return {
+                "healthy": True,
+                "response_time": response_time,
+                "status_code": response.status_code
+            }
+        else:
+            return {
+                "healthy": False,
+                "response_time": response_time,
+                "status_code": response.status_code,
+                "error": f"HTTP {response.status_code}"
+            }
+            
+    except httpx.TimeoutException:
+        return {
+            "healthy": False,
+            "error": "Timeout",
+            "response_time": 5000
+        }
+    except Exception as e:
+        return {
+            "healthy": False,
+            "error": str(e),
+            "response_time": None
+        }
+
+async def measure_response_time(port: int) -> float:
+    """응답 시간 측정"""
+    try:
+        start_time = time.time()
+        
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            await client.get(f"http://localhost:{port}/health")
+            
+        end_time = time.time()
+        return round((end_time - start_time) * 1000, 2)  # ms
+        
+    except Exception:
+        return None
+
 if __name__ == "__main__":
     main()

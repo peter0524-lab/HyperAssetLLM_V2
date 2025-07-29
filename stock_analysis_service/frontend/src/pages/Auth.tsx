@@ -48,25 +48,29 @@ const Auth = () => {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       try {
-        // 전화번호로 사용자 확인 API 호출
-        const response = await fetch(`http://localhost:8005/api/user/check-user?phone_number=${inputPhoneNumber}`);
+        // 전화번호로 사용자 확인 API 호출 (User Service 직접 호출)
+        console.log('🔍 사용자 확인 API 호출 시작 (직접 호출)');
+        console.log('📱 전화번호:', inputPhoneNumber);
+        console.log('🔗 직접 호출 URL:', `http://localhost:8006/users/check?phone_number=${inputPhoneNumber}`);
+        
+        const response = await fetch(`http://localhost:8006/users/check?phone_number=${inputPhoneNumber}`);
         const userCheckResult: any = await response.json();
-        console.log('✅ API 응답:', userCheckResult);
+        console.log('✅ User Service 직접 호출 응답:', userCheckResult);
         
         // API 응답 구조: { success: true, data: { exists: true, user_id: "...", username: "..." } }
         if (userCheckResult.success && userCheckResult.data && userCheckResult.data.exists) {
-          console.log('✅ 실제 프로필 찾음:', userCheckResult);
+          console.log('✅ 실제 프로필 찾음 (직접 호출):', userCheckResult);
           return { 
             exists: true, 
             user_id: userCheckResult.data.user_id,
             username: userCheckResult.data.username 
           };
         } else {
-          console.log('❌ 사용자 존재하지 않음');
+          console.log('❌ 사용자 존재하지 않음 (직접 호출)');
           return { exists: false, error: 'User not found' };
         }
       } catch (error: any) {
-        console.log('❌ API 에러:', error.response?.status);
+        console.log('❌ User Service 직접 호출 에러:', error.response?.status);
         
         // 404는 사용자 없음
         if (error.response?.status === 404) {
