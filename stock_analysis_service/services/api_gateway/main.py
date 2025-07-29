@@ -1075,7 +1075,7 @@ async def update_user_stocks(user_id: str, request: Request):
                 return response.json()
             else:
                 raise HTTPException(status_code=response.status_code, detail=response.text)
-                
+            
     except httpx.RequestError as e:
         logger.error(f"❌ 사용자 종목 배치 설정 실패: {e}")
         raise HTTPException(status_code=500, detail=f"사용자 종목 배치 설정 실패: {str(e)}")

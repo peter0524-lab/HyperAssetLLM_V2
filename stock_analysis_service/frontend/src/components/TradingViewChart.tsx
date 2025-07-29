@@ -122,7 +122,7 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
                   <div className="text-sm text-gray-600">{stock.stock_code} • {stock.sector}</div>
                 </button>
               ))}
-            </div>
+          </div>
           )}
         </div>
       </div>
@@ -136,25 +136,25 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
             <div className="text-center p-8">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <TrendingUp className="h-8 w-8 text-blue-600" />
-              </div>
+          </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
                 {selectedStock.company_name} 차트
               </h3>
-              <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 mb-4">
                 종목코드: {selectedStock.stock_code} | 업종: {selectedStock.sector}
-              </p>
-              
+          </p>
+          
               {/* 샘플 차트 시뮬레이션 */}
               <div className="flex items-end justify-center gap-2 mb-6">
-                {[40, 65, 45, 80, 55, 90, 70, 85, 60, 95].map((height, index) => (
-                  <div
-                    key={index}
+            {[40, 65, 45, 80, 55, 90, 70, 85, 60, 95].map((height, index) => (
+              <div
+                key={index}
                     className="w-4 bg-blue-500 rounded-t"
-                    style={{ height: `${height}px` }}
-                  />
-                ))}
-              </div>
-              
+                style={{ height: `${height}px` }}
+              />
+            ))}
+          </div>
+          
               <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
                 <p className="text-sm text-yellow-800">
                   <strong>🔧 개발 모드:</strong> 실시간 차트는 프로덕션 환경에서 정상 작동합니다.
@@ -163,7 +163,7 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
               </div>
               <div className="mt-4 text-xs text-gray-500">
                 TradingView 심볼: {getTradingViewSymbol(selectedStock.stock_code)}
-              </div>
+            </div>
             </div>
           </div>
         ) : (

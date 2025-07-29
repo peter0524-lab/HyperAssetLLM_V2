@@ -197,7 +197,7 @@ class MySQLConnectionPool:
                 else:
                     self._close_connection(wrapper)
                     raise queue.Empty()
-            except queue.Empty:
+        except queue.Empty:
                 pass
         
         except Exception as e:
