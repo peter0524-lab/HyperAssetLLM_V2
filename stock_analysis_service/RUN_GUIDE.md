@@ -85,17 +85,25 @@ TELEGRAM_CHAT_ID=1002263561615
 
 ### 3단계: 전체 시스템 실행
 ```bash
-# 오케스트레이터를 통한 자동 실행 (권장)
-python services/orchestrator/main.py
+# 모든 서비스 한 번에 실행 (권장)
+python start_all_services.py
 
-# 개별 서비스 실행도 가능
+# 또는 개별 서비스 실행도 가능
 python -m services.news_service.news_service
 python -m services.disclosure_service.disclosure_service
 # ... 기타 서비스들
 ```
 
-### 4단계: 웹 인터페이스 접근
-- **오케스트레이터 API**: http://localhost:8000
+### 4단계: 프론트엔드 실행
+```bash
+cd frontend
+npm run dev
+```
+
+### 5단계: 웹 인터페이스 접근
+- **프론트엔드**: http://localhost:5173
+- **API Gateway**: http://localhost:8005
+- **Simple Server Starter**: http://localhost:9998
 - **모니터링 대시보드**: http://localhost:8501
 
 ## 📊 주요 기능

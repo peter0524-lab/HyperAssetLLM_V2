@@ -88,25 +88,45 @@ def kill_existing_services():
     log_info("기존 실행 중인 서비스들 확인 및 종료...")
     
    # ports = [8001, 8002, 8003, 8004, 8005, 8006, 8007, 8008, 8009, 8010]
-    ports = [8001,8002,8003,8004,8005,8006,8010]
+    ports = [9998,8001,8002,8003,8004,8005,8006,8010]
     
     for port in ports:
         try:
-            # lsof 명령으로 포트 사용 프로세스 찾기
-            result = subprocess.run(
-                ['lsof', '-ti', f':{port}'],
-                capture_output=True,
-                text=True
-            )
-            
-            if result.stdout.strip():
-                pids = result.stdout.strip().split('\n')
-                for pid in pids:
-                    try:
-                        subprocess.run(['kill', '-9', pid], check=True)
-                        log_warning(f"포트 {port}의 기존 프로세스 종료됨 (PID: {pid})")
-                    except:
-                        pass
+            # Windows와 Unix 환경 모두 지원
+            if os.name == 'nt':  # Windows
+                result = subprocess.run(
+                    ['netstat', '-ano', '|', 'findstr', f':{port}'],
+                    capture_output=True,
+                    text=True,
+                    shell=True
+                )
+                if result.stdout.strip():
+                    lines = result.stdout.strip().split('\n')
+                    for line in lines:
+                        if f':{port}' in line:
+                            parts = line.split()
+                            if len(parts) > 4:
+                                pid = parts[-1]
+                                try:
+                                    subprocess.run(['taskkill', '/F', '/PID', pid], check=True)
+                                    log_warning(f"포트 {port}의 기존 프로세스 종료됨 (PID: {pid})")
+                                except:
+                                    pass
+            else:  # Unix/Linux/Mac
+                result = subprocess.run(
+                    ['lsof', '-ti', f':{port}'],
+                    capture_output=True,
+                    text=True
+                )
+                
+                if result.stdout.strip():
+                    pids = result.stdout.strip().split('\n')
+                    for pid in pids:
+                        try:
+                            subprocess.run(['kill', '-9', pid], check=True)
+                            log_warning(f"포트 {port}의 기존 프로세스 종료됨 (PID: {pid})")
+                        except:
+                            pass
         except:
             pass
 
@@ -131,6 +151,12 @@ def main():
     
     # 서비스 시작 순서 (의존성 기반)
     services = [
+        {
+            "name": "Simple Server Starter",
+            "command": [sys.executable, "simple_server_starter.py"],
+            "port": 9998,
+            "wait_time": 5
+        },
         {
             "name": "User Service",
             "command": [sys.executable, "services/user_service/user_service.py"],
