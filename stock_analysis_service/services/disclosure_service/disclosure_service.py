@@ -6,7 +6,6 @@
 - 유사 과거 사례 검색
 - 주가 영향 예측
 """
-
 import asyncio
 import json
 import logging
@@ -14,6 +13,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 import sys
+import os
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
@@ -799,6 +799,15 @@ async def get_latest_signal():
 async def execute_disclosure_analysis_endpoint(request: Request):
     """공시 분석 실행 - 사용자별 동적 처리"""
     try:
+        # --- 로그 추가 ---
+        print("="*50)
+        print("DISCLOSURE LOG:   최종 목적지 도착!")
+        print("DISCLOSURE LOG: 게이트웨이로부터 /execute 요청을 성공적으로 받았습니다.")
+        print(f"DISCLOSURE LOG: 요청 헤더: {request.headers}")
+        print("DISCLOSURE LOG: 지금부터 실제 공시 분석을 시작합니다...")
+        print("="*50)
+        # --- 로그 추가 끝 ---
+
         # Header에서 user_id 추출 (문자열로 처리)
         user_id = request.headers.get("X-User-ID", "1")
         
@@ -806,10 +815,18 @@ async def execute_disclosure_analysis_endpoint(request: Request):
         service = get_disclosure_service()
         if service.current_user_id != user_id:
             await service.set_user_id(user_id)
-            logger.info(f"🔄 사용자 컨텍스트 변경: {user_id}")
+            logger.info(f" 사용자 컨텍스트 변경: {user_id}")
         
         # 공시 분석 실행
         result = await execute_disclosure_analysis()
+        
+        # --- 로그 추가 ---
+        print("="*50)
+        print("DISCLOSURE LOG:  분석 완료! 결과를 게이트웨이로 반환합니다.")
+        print(f"DISCLOSURE LOG: 반환 결과: {result}")
+        print("="*50)
+        # --- 로그 추가 끝 ---
+        
         return result
         
     except Exception as e:
@@ -961,6 +978,23 @@ def main():
     except Exception as e:
         print(f"서비스 실행 실패: {e}")
 
+async def test_single_function():
+        """
+        execute_disclosure_analysis 함수만 독립적으로 테스트하기 위한 함수
+        """
+        print("="*50)
+        print("🚀 단일 함수 테스트를 시작합니다: execute_disclosure_analysis")
+        print("="*50)
+        
+            # 함수 실행
+        result = await execute_disclosure_analysis()
+        
+        print("="*50)
+        print("✅ 테스트 완료!" )
+        print("📦 반환된 결과:")
+        # 결과값을 예쁘게 출력하기 위해 json 모듈 사용
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        print("="*50)
 
 if __name__ == "__main__":
     main()
