@@ -32,7 +32,11 @@ class GeminiClient:
         else:  # macOS/Linux
             self.gemini_cmd_path = "gemini"
         
+        # API 키 설정 (Gemini CLI는 API 키를 자체적으로 관리)
+        self.api_key = os.getenv("GEMINI_API_KEY", "")
+        
         logger.debug(f"🔧 Gemini CLI 경로: {self.gemini_cmd_path}")
+        logger.debug(f"🔧 Gemini API 키 존재: {bool(self.api_key)}")
     
     def is_available(self) -> bool:
         """Gemini CLI 사용 가능 여부 확인"""

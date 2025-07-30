@@ -12,6 +12,7 @@ import { Loader2, Phone, CheckCircle, XCircle, ArrowRight, Download } from "luci
 import { toast } from "sonner";
 import { api, userStorage } from "@/lib/api";
 
+//페이지 진입시 초기화화
 const Auth = () => {
   const navigate = useNavigate();
   const [phoneNumber, setPhoneNumber] = useState("");

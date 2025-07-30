@@ -2684,7 +2684,7 @@ class NewsService:
             })
     
     async def send_alert(self, news_item: Dict, impact_score: float, reasoning: str):
-        """고영향 뉴스 알림 전송 (개선된 요약 + 상세 종목 정보 + 과거 사례 주가 추이)"""
+        """고영향 뉴스 알림 전송 (사용자별 설정 확인 + 채널 알림)"""
         # 🔧 수정: datetime import를 함수 최상단으로 이동하여 UnboundLocalError 해결
         from datetime import datetime, timedelta
         
@@ -2784,140 +2784,58 @@ class NewsService:
                                 # 날짜 형식 유효성 검증
                                 datetime.strptime(event_date_str, '%Y-%m-%d')
                                 
-                            except Exception as date_error:
-                                logger.warning(f"⚠️ 날짜 형식 오류: {date_error}")
-                                event_date_str = ""
-                        
-                        # 주가 데이터 조회 (3단계 시도)
-                        price_data_success = False
-                        
-                        # 1단계: pykrx로 과거 사례 날짜 기준 주가 데이터 조회
-                        if event_date_str:
-                            try:
-                                logger.debug(f"📊 1단계: pykrx로 과거 사례 날짜({event_date_str}) 기준 주가 데이터 조회...")
-                                price_history = self.get_stock_price_history(stock_code, event_date_str, days=5)
+                                # 주가 추이 데이터 조회
+                                price_history = self.get_stock_price_history(stock_code, event_date_str, 5)
                                 
                                 if price_history and len(price_history) > 0:
-                                    price_history_message = self.format_price_history_for_telegram(
-                                        price_history, most_similar_case
-                                    )
-                                    logger.info(f"✅ 1단계 성공: pykrx로 {len(price_history)}일 데이터 조회")
-                                    price_data_success = True
+                                    logger.info(f"📊 주가 추이 데이터 조회 성공: {len(price_history)}건")
+                                    price_history_message = self.format_price_history_for_telegram(price_history, most_similar_case)
                                 else:
-                                    logger.warning("⚠️ 1단계 실패: pykrx 데이터 없음")
+                                    logger.warning(f"⚠️ 주가 추이 데이터 없음: {event_date_str}")
+                                    price_history_message = self.create_fallback_price_message(most_similar_case, stock_code, stock_name)
                                     
-                            except Exception as pykrx_error:
-                                logger.warning(f"⚠️ 1단계 실패: pykrx 오류 - {pykrx_error}")
-                        
-                        # 2단계: 최근 주가 데이터 사용 (최종 fallback)
-                        if not price_data_success:
-                            try:
-                                logger.debug("📊 2단계: 최근 주가 데이터로 최종 대체...")
-                                # 최근 5일 데이터 조회
-                                recent_date = datetime.now().strftime('%Y-%m-%d')
-                                recent_price_history = self.get_stock_price_history(stock_code, recent_date, days=5)
-                                
-                                if recent_price_history and len(recent_price_history) > 0:
-                                    # 최근 데이터로 대체하되, 과거 사례 정보는 유지
-                                    fallback_case = most_similar_case.copy()
-                                    fallback_case['published_date'] = recent_date
-                                    fallback_case['title'] = f"[최근 데이터] {fallback_case.get('title', 'Unknown')}"
-                                    
-                                    price_history_message = self.format_price_history_for_telegram(
-                                        recent_price_history, fallback_case
-                                    )
-                                    logger.info(f"✅ 2단계 성공: 최근 데이터로 대체 ({len(recent_price_history)}일)")
-                                    price_data_success = True
-                                else:
-                                    logger.warning("⚠️ 2단계 실패: 최근 데이터도 없음")
-                                    
-                            except Exception as fallback_error:
-                                logger.warning(f"⚠️ 2단계 실패: 최근 데이터 오류 - {fallback_error}")
-                        
-                        # 모든 단계 실패한 경우
-                        if not price_data_success:
-                            logger.error("❌ 모든 주가 데이터 조회 방법 실패")
-                            # stock_name의 None 체크
-                            safe_stock_name = stock_name if stock_name else self.stock_names.get(stock_code, stock_code)
-                            price_history_message = self.create_fallback_price_message(most_similar_case, stock_code, safe_stock_name)
-                            logger.info("✅ 대체 메시지 생성 완료")
+                            except ValueError as date_error:
+                                logger.warning(f"⚠️ 날짜 형식 오류: {event_date} - {date_error}")
+                                price_history_message = self.create_fallback_price_message(most_similar_case, stock_code, stock_name)
+                            except Exception as history_error:
+                                logger.error(f"❌ 주가 추이 조회 실패: {history_error}")
+                                price_history_message = self.create_fallback_price_message(most_similar_case, stock_code, stock_name)
+                        else:
+                            logger.warning(f"⚠️ 과거 사례 날짜 없음")
+                            price_history_message = self.create_fallback_price_message(most_similar_case, stock_code, stock_name)
                             
-                    except Exception as price_error:
-                        logger.error(f"❌ 주가 추이 분석 전체 실패: {price_error}")
-                        log_error_with_traceback("주가 추이 분석 실패", price_error, {
-                            "stock_code": stock_code,
-                            "most_similar_case": most_similar_case.get('title', 'Unknown')[:50]
-                        })
-                        # stock_name의 None 체크
-                        safe_stock_name = stock_name if stock_name else self.stock_names.get(stock_code, stock_code)
-                        price_history_message = self.create_fallback_price_message(most_similar_case, stock_code, safe_stock_name)
+                    except Exception as analysis_error:
+                        logger.error(f"❌ 과거 사례 분석 실패: {analysis_error}")
+                        price_history_message = self.create_fallback_price_message(most_similar_case, stock_code, stock_name)
                 else:
-                    logger.info(f"📊 유사도 {similarity_score:.3f} < 0.0 - 주가 추이 분석 건너뜀")
-                    price_history_message = None
-                    
+                    logger.info(f"⚠️ 유사도 {similarity_score:.3f} < 0.0 - 주가 추이 분석 생략")
+                    price_history_message = ""
             else:
-                # 유사 사례가 없는 경우 임의 과거 분석
-                logger.info("📊 과거 유사 사례 없음 - 임의 과거 분석 시도")
-                try:
-                    # 30일 전 데이터로 샘플 분석
-                    sample_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-                    sample_price_history = self.get_stock_price_history(stock_code, sample_date, days=5)
-                    
-                    if sample_price_history and len(sample_price_history) > 0:
-                        # 가상의 유사 사례 생성
-                        # stock_name의 None 체크
-                        safe_stock_name = stock_name if stock_name else self.stock_names.get(stock_code, stock_code)
-                        virtual_case = {
-                            'title': f"{safe_stock_name} 관련 과거 사례",
-                            'published_date': sample_date,
-                            'similarity_score': 0.2,
-                            'summary': "과거 유사 사례를 찾을 수 없어 임의 과거 데이터를 참조합니다."
-                        }
-                        
-                        price_history_message = self.format_price_history_for_telegram(
-                            sample_price_history, virtual_case
-                        )
-                        logger.info(f"✅ 임의 과거 분석 완료: {len(sample_price_history)}일 데이터")
-                    else:
-                        logger.warning("⚠️ 임의 과거 분석도 실패")
-                        
-                except Exception as sample_error:
-                    logger.warning(f"⚠️ 임의 과거 분석 실패: {sample_error}")
-                    logger.info("📊 주가 추이 분석 전체 건너뜀")
-
-            # 종목 정보 가져오기 (상세 정보 모두 포함)
-            stock_info = news_item.get("stock_info", {})
-            current_price = stock_info.get("현재가", "N/A")
-            change_rate = stock_info.get("등락률", "N/A")
-            prev_close = stock_info.get("전일", "N/A")
-            open_price = stock_info.get("시가", "N/A")
-            high_price = stock_info.get("고가", "N/A")
-            trading_volume = stock_info.get("거래량", "N/A")
-            trading_value = stock_info.get("거래대금", "N/A")
-            market_cap = stock_info.get("시가총액", "N/A")
-            per_ratio = stock_info.get("PER", "N/A")
+                logger.info("⚠️ 유사한 과거 사례 없음 - 주가 추이 분석 생략")
+                price_history_message = ""
             
-            # 영향도 이모지 결정
-            if impact_score >= 0.8:
-                impact_emoji = "🚨🔥"
-                impact_level = "매우 높음"
+            # 종목 정보 조회
+            stock_info = self.get_stock_info_for_code(stock_code)
+            current_price = stock_info.get('current_price', 'N/A')
+            prev_close = stock_info.get('prev_close', 'N/A')
+            open_price = stock_info.get('open_price', 'N/A')
+            high_price = stock_info.get('high_price', 'N/A')
+            market_cap = stock_info.get('market_cap', 'N/A')
+            per_ratio = stock_info.get('per_ratio', 'N/A')
+            
+            # 영향도 레벨 결정
+            if impact_score >= 0.9:
+                impact_level = "🔥 매우 높음"
+                impact_emoji = "🚨"
             elif impact_score >= 0.7:
-                impact_emoji = "⚠️"
-                impact_level = "높음"
+                impact_level = "🔥 높음"
+                impact_emoji = "🔥"
+            elif impact_score >= 0.5:
+                impact_level = "⚡ 중간"
+                impact_emoji = "⚡"
             else:
+                impact_level = "📊 보통"
                 impact_emoji = "📊"
-                impact_level = "보통"
-            
-            # 등락률 방향 이모지 결정
-            if change_rate and change_rate != "N/A":
-                if change_rate.startswith('+'):
-                    rate_emoji = "📈"
-                elif change_rate.startswith('-'):
-                    rate_emoji = "📉"
-                else:
-                    rate_emoji = "➡️"
-            else:
-                rate_emoji = "➡️"
             
             # 시간 포맷팅
             pub_time = news_item['published_at']
@@ -2965,72 +2883,103 @@ class NewsService:
             message_parts.append("• 필터링: 3단계 통과")
             message_parts.append(f"• 분석시간: {datetime.now().strftime('%H:%M:%S')}")
             
-            # 주가 추이 정보 추가 (개선된 방식)
-            if similar_cases and len(similar_cases) > 0:
+            # 과거 사례 주가 추이 추가
+            if price_history_message:
                 message_parts.append("")
-                message_parts.append("📊 <b>과거 유사 사례 분석</b>")
-                
-                # 가장 유사한 사례 정보 표시
-                most_similar_case = similar_cases[0]
-                similarity_score = most_similar_case.get('similarity_score', 0.0)
-                
-                message_parts.append(f"🔍 <b>가장 유사한 사례:</b> {most_similar_case.get('title', 'Unknown')[:50]}...")
-                message_parts.append(f"📅 <b>발생일:</b> {most_similar_case.get('published_date', 'Unknown')}")
-                message_parts.append(f"🎯 <b>유사도:</b> {similarity_score:.3f}")
-                
-                # 유사도와 관계없이 주가 추이 정보 항상 표시
-                if price_history_message:
-                    message_parts.append("")
-                    message_parts.append(price_history_message)
-                # 추가 유사 사례 정보 (최대 2개 더)
-                if len(similar_cases) > 1:
-                    message_parts.append("")
-                    message_parts.append("📋 <b>추가 유사 사례:</b>")
-                    for i, case in enumerate(similar_cases[1:3], 2):  # 최대 2개 더
-                        case_similarity = case.get('similarity_score', 0.0)
-                        message_parts.append(f"• {case.get('title', 'Unknown')[:40]}... (유사도: {case_similarity:.3f})")
-            else:
-                message_parts.append("")
-                message_parts.append("📊 <b>과거 유사 사례</b>")
-                message_parts.append("💡 <i>유사한 과거 사례를 찾을 수 없습니다.</i>")
+                message_parts.append("📈 <b>과거 유사 사례 주가 추이</b>")
+                message_parts.append(price_history_message)
             
-            message_parts.append("")
-            message_parts.append("🔗 <b>상세 보기</b>")
-            message_parts.append(news_item['url'])
-            message_parts.append("")
-            message_parts.append("⚠️ <i>이 분석은 참고용이며, 투자 결정은 신중하게 하시기 바랍니다.</i>")
+            # 최종 메시지 조합
+            final_message = "\n".join(message_parts)
             
-            message = "\n".join(message_parts)
+            # 🆕 사용자별 알림 전송 (설정 확인)
+            await self._send_user_notifications(news_item, final_message, impact_score)
             
-            # 텔레그램 전송 (API 429 에러 방지를 위한 지연 추가)
-            if self.telegram_bot:
-                # 텔레그램 API 호출 간격 조절
-                time.sleep(1)  # 1초 지연
-                
-                success = await self.telegram_bot.send_message_async(
-                    message, 
-                    parse_mode="HTML",
-                    disable_preview=True
-                )
-                
-                # 최근 알람 메시지 저장
-                if success:
-                    await save_latest_signal(message)
-                
-                if success:
-                    logger.info(f"✅ 텔레그램 알림 전송 성공: {stock_name} ({stock_code}) - 요약: {news_summary[:30]}...")
-                else:
-                    logger.error(f"❌ 텔레그램 알림 전송 실패: {stock_name} ({stock_code})")
-            else:
-                logger.warning("⚠️ 텔레그램 봇이 초기화되지 않음")
+            # 🆕 채널 알림 전송 (기존 방식 유지)
+            await self._send_channel_notification(final_message)
+            
+            logger.info(f"✅ 뉴스 알림 전송 완료: {stock_name} ({stock_code})")
             
         except Exception as e:
-            logger.error(f"❌ 알림 전송 실패: {e}")
-            log_error_with_traceback("텔레그램 알림 전송 실패", e, {
+            logger.error(f"❌ 뉴스 알림 전송 실패: {e}")
+            log_error_with_traceback("뉴스 알림 전송 실패", e, {
                 "stock_code": news_item.get("stock_code", ""),
-                "title": news_item.get("title", "")[:50]
+                "title": news_item.get("title", "")[:50],
+                "impact_score": impact_score
             })
     
+    async def _send_user_notifications(self, news_item: Dict, message: str, impact_score: float):
+        """사용자별 알림 전송 (설정 확인 + 종목 필터링)"""
+        try:
+            # UserConfigLoader import
+            from shared.service_config.user_config_loader import UserConfigLoader
+            
+            config_loader = UserConfigLoader()
+            stock_code = news_item.get("stock_code", "")
+            
+            # 모든 활성 사용자 조회 (현재는 테스트용으로 고정 사용자)
+            # TODO: 실제로는 데이터베이스에서 활성 사용자 목록을 조회해야 함
+            test_users = ["1"]  # 테스트용 사용자 ID
+            
+            for user_id in test_users:
+                try:
+                    # 🆕 사용자가 이 종목에 관심이 있는지 확인
+                    is_interested = await config_loader.is_user_interested_in_stock(user_id, stock_code)
+                    if not is_interested:
+                        logger.debug(f"⚠️ 사용자가 종목에 관심 없음: {user_id} - {stock_code}")
+                        continue
+                    
+                    # 사용자별 알림 설정 조회
+                    notification_settings = await config_loader.get_user_notification_settings(user_id)
+                    
+                    # 뉴스 알림이 활성화되어 있고, 전체 알림이 활성화된 경우만 전송
+                    if (notification_settings.get("enabled", True) and 
+                        notification_settings.get("news_alerts", True)):
+                        
+                        # 사용자별 텔레그램 설정 조회
+                        telegram_config = await config_loader.get_user_telegram_config(user_id)
+                        if telegram_config and telegram_config.get("enabled", True):
+                            # 개별 사용자에게 알림 전송
+                            await self._send_user_notification(user_id, message, telegram_config)
+                            logger.info(f"✅ 사용자 뉴스 알림 전송 완료: {user_id} - {stock_code}")
+                        else:
+                            logger.debug(f"⚠️ 사용자 텔레그램 비활성화: {user_id}")
+                    else:
+                        logger.debug(f"⚠️ 사용자 뉴스 알림 비활성화: {user_id}")
+                        
+                except Exception as user_error:
+                    logger.error(f"❌ 사용자 알림 전송 실패: {user_id} - {user_error}")
+                    
+        except Exception as e:
+            logger.error(f"❌ 사용자별 알림 전송 실패: {e}")
+    
+    async def _send_user_notification(self, user_id: str, message: str, telegram_config: Dict):
+        """개별 사용자에게 알림 전송"""
+        try:
+            # 사용자별 채팅 ID 사용
+            chat_id = telegram_config.get("chat_id")
+            if chat_id:
+                # 텔레그램 봇으로 개별 사용자에게 전송
+                from shared.apis.telegram_api import TelegramBotClient
+                telegram_bot = TelegramBotClient()
+                telegram_bot.send_message(message, str(chat_id))
+                logger.info(f"✅ 개별 사용자 알림 전송 완료: {user_id} -> {chat_id}")
+            else:
+                logger.warning(f"⚠️ 사용자 채팅 ID 없음: {user_id}")
+                
+        except Exception as e:
+            logger.error(f"❌ 개별 사용자 알림 전송 실패: {user_id} - {e}")
+    
+    async def _send_channel_notification(self, message: str):
+        """채널 알림 전송 (기존 방식)"""
+        try:
+            from shared.apis.telegram_api import TelegramBotClient
+            telegram_bot = TelegramBotClient()
+            telegram_bot.send_message(message)
+            logger.info("✅ 채널 알림 전송 완료")
+        except Exception as e:
+            logger.error(f"❌ 채널 알림 전송 실패: {e}")
+
     async def crawl_news_for_stock(self, stock_code: str):
         """종목별 뉴스 크롤링 (4단계 준비)"""
         try:

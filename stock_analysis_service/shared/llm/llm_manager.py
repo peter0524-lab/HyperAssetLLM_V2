@@ -7,7 +7,9 @@ import logging
 from typing import Optional, Dict, Any
 from .hyperclova_client import HyperCLOVAClient
 from .gemini_client import GeminiClient
+from .gemini_api_client import GeminiAPIClient
 from .chat_gpt import OpenAIClient
+from .claude_client import ClaudeClient
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +28,11 @@ class LLMManager:
         try:
             # 각 클라이언트가 자체적으로 API 키를 가져옴
             self.clients["hyperclova"] = HyperCLOVAClient()
-            self.clients["gemini"] = GeminiClient()
+            self.clients["gemini"] = GeminiAPIClient()  # API 방식으로 변경
             self.clients["openai"] = OpenAIClient()
+            self.clients["claude"] = ClaudeClient()
             
             # 추후 구현 예정
-            # self.clients["claude"] = ClaudeClient()
             # self.clients["grok"] = GrokClient()
             
         except Exception as e:

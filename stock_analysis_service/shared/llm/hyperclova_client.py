@@ -6,6 +6,7 @@ import asyncio
 import aiohttp
 import json
 import logging
+import os
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import uuid
@@ -20,7 +21,7 @@ class HyperCLOVAClient:
     """HyperCLOVA AI 클라이언트"""
     
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
-        self.api_key = api_key
+        self.api_key = api_key or os.getenv("HYPERCLOVA_API_KEY", "")
         self.base_url = base_url or "https://clovastudio.stream.ntruss.com/testapp/v1/chat-completions/HCX-003"
         self.session = None
         

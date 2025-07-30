@@ -76,8 +76,36 @@ class UserConfigLoader:
     
     async def get_user_stocks(self, user_id: str) -> List[Dict[str, Any]]:
         """사용자의 활성화된 종목 목록 조회"""
-        config = await self.load_user_config(user_id)
-        return config.get("stocks", []) if config else []
+        try:
+            # User Service에서 직접 조회
+            user_service_url = "http://localhost:8006"
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"{user_service_url}/users/{user_id}/stocks")
+                response.raise_for_status()
+                
+                result = response.json()
+                if result.get("success"):
+                    stocks_data = result.get("data", [])
+                    # 활성화된 종목만 필터링
+                    active_stocks = [stock for stock in stocks_data if stock.get("enabled", True)]
+                    logger.info(f"✅ 사용자 종목 조회 완료: {user_id} - {len(active_stocks)}개 종목")
+                    return active_stocks
+                else:
+                    logger.warning(f"⚠️ 사용자 종목 조회 실패: {user_id}")
+                    return []
+                    
+        except Exception as e:
+            logger.error(f"❌ 사용자 종목 조회 실패: {user_id} - {e}")
+            return []
+    
+    async def is_user_interested_in_stock(self, user_id: str, stock_code: str) -> bool:
+        """사용자가 특정 종목에 관심이 있는지 확인"""
+        try:
+            user_stocks = await self.get_user_stocks(user_id)
+            return any(stock.get("stock_code") == stock_code for stock in user_stocks)
+        except Exception as e:
+            logger.error(f"❌ 사용자 종목 관심도 확인 실패: {user_id} - {stock_code} - {e}")
+            return False
     
     async def get_user_model(self, user_id: str) -> str:
         """사용자의 선택된 AI 모델 조회"""
@@ -96,6 +124,67 @@ class UserConfigLoader:
         return {
             "news_similarity_threshold": config.get("news_similarity_threshold", 0.7),
             "news_impact_threshold": config.get("news_impact_threshold", 0.8)
+        }
+    
+    async def get_user_notification_settings(self, user_id: str) -> Dict[str, bool]:
+        """사용자의 알림 설정 조회"""
+        try:
+            # User Service에서 직접 조회
+            user_service_url = "http://localhost:8006"
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"{user_service_url}/users/{user_id}/telegram-config")
+                response.raise_for_status()
+                
+                result = response.json()
+                if result.get("success"):
+                    config = result.get("data", {})
+                    return {
+                        "news_alerts": config.get("news_alerts", True),
+                        "disclosure_alerts": config.get("disclosure_alerts", True),
+                        "chart_alerts": config.get("chart_alerts", True),
+                        "price_alerts": config.get("price_alerts", True),
+                        "weekly_reports": config.get("weekly_reports", False),
+                        "error_alerts": config.get("error_alerts", False),
+                        "enabled": config.get("enabled", True)
+                    }
+                else:
+                    logger.warning(f"⚠️ 알림 설정 조회 실패: {user_id}")
+                    return self._get_default_notification_settings()
+                    
+        except Exception as e:
+            logger.error(f"❌ 알림 설정 조회 실패: {user_id} - {e}")
+            return self._get_default_notification_settings()
+    
+    async def get_user_telegram_config(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """사용자의 텔레그램 설정 조회"""
+        try:
+            # User Service에서 직접 조회
+            user_service_url = "http://localhost:8006"
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"{user_service_url}/users/{user_id}/telegram-config")
+                response.raise_for_status()
+                
+                result = response.json()
+                if result.get("success"):
+                    return result.get("data", {})
+                else:
+                    logger.warning(f"⚠️ 텔레그램 설정 조회 실패: {user_id}")
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"❌ 텔레그램 설정 조회 실패: {user_id} - {e}")
+            return None
+    
+    def _get_default_notification_settings(self) -> Dict[str, bool]:
+        """기본 알림 설정"""
+        return {
+            "news_alerts": True,
+            "disclosure_alerts": True,
+            "chart_alerts": True,
+            "price_alerts": True,
+            "weekly_reports": False,
+            "error_alerts": False,
+            "enabled": True
         }
     
     async def is_service_active_for_user(self, user_id: str, service_name: str) -> bool:

@@ -5,13 +5,17 @@ LLM (Large Language Model) 모듈
 
 from .hyperclova_client import HyperCLOVAClient
 from .gemini_client import GeminiClient
+from .gemini_api_client import GeminiAPIClient
 from .chat_gpt import OpenAIClient
+from .claude_client import ClaudeClient
 from .llm_manager import LLMManager, llm_manager, get_llm_manager
 
 __all__ = [
     "HyperCLOVAClient",
-    "GeminiClient", 
+    "GeminiClient",
+    "GeminiAPIClient",
     "OpenAIClient",
+    "ClaudeClient",
     "LLMManager",
     "llm_manager",
     "get_llm_manager"

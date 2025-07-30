@@ -7,6 +7,7 @@ import json
 import asyncio
 import logging
 import re
+import os
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
@@ -17,7 +18,7 @@ class OpenAIClient:
     """OpenAI ChatGPT 클라이언트"""
     
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model: str = "gpt-4o-mini"):
-        self.api_key = api_key
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY", "")
         self.base_url = base_url or "https://api.openai.com/v1/chat/completions"
         self.model = model
         self.session = None
