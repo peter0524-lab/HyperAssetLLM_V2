@@ -446,6 +446,7 @@ class FlowAnalysisService:
             self.logger.error(f"기관 트리거 처리 실패: {e}")
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     async def check_composite_trigger(self, stock_code: str):
         """복합 트리거 체크 (기관 + 프로그램)"""
         try:
@@ -483,6 +484,9 @@ class FlowAnalysisService:
 
         except Exception as e:
             self.logger.error(f"복합 트리거 체크 실패: {e}")
+=======
+    # 복합 트리거 체크 함수 제거 (각각 독립적으로 알림 전송)
+>>>>>>> Stashed changes
 =======
     # 복합 트리거 체크 함수 제거 (각각 독립적으로 알림 전송)
 >>>>>>> Stashed changes
