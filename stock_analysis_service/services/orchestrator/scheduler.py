@@ -3,12 +3,13 @@
 - 10분마다 모든 서비스에 "체크해봐" 신호 전송
 - 각 서비스가 독립적으로 실행 시간 판단
 - 진정한 분산형 마이크로서비스 패턴
+- 조건 미충족 시 정기 알림 발송
 """
 
 import asyncio
 import aiohttp
 import logging
-from datetime import datetime
+from datetime import datetime, time
 from typing import Dict, List
 from pathlib import Path
 import sys
@@ -37,15 +38,99 @@ class SimpleCheckScheduler:
         # 서비스 목록 및 포트 (체크 신호 발송 대상)
         # Note: user_service는 프론트엔드 요청 기반 API이므로 스케줄링 불필요
         self.services = {
-            "news_service": {"port": 8001, "enabled": True},
-            "disclosure_service": {"port": 8002, "enabled": True}, 
-            "chart_service": {"port": 8003, "enabled": True},
-            "report_service": {"port": 8004, "enabled": True},
-            "flow_analysis_service": {"port": 8010, "enabled": True}
+            "news_service": {"port": 8001, "enabled": True, "type": "hourly"},
+            "disclosure_service": {"port": 8002, "enabled": True, "type": "hourly"}, 
+            "chart_service": {"port": 8003, "enabled": True, "type": "market_close"},
+            "report_service": {"port": 8004, "enabled": True, "type": "weekly"},
+            "flow_analysis_service": {"port": 8010, "enabled": True, "type": "market_close"}
         }
         
         # 스케줄러 상태
         self.is_running = False
+        
+        # 마지막 알림 시간 추적
+        self.last_notifications = {
+            "news_service": None,
+            "disclosure_service": None,
+            "chart_service": None,
+            "flow_analysis_service": None
+        }
+        
+        # 장 마감 시간 (한국 시간)
+        self.market_close_time = time(15, 30)  # 15:30
+        
+    def is_market_close_time(self) -> bool:
+        """현재 시간이 장 마감 시간인지 확인"""
+        now = datetime.now()
+        return now.time() >= self.market_close_time and now.time() < time(16, 0)
+    
+    def should_send_hourly_notification(self, service_name: str) -> bool:
+        """1시간마다 알림을 보내야 하는지 확인"""
+        now = datetime.now()
+        last_notification = self.last_notifications.get(service_name)
+        
+        if last_notification is None:
+            return True
+        
+        # 마지막 알림으로부터 1시간이 지났는지 확인
+        time_diff = (now - last_notification).total_seconds()
+        return time_diff >= 3600  # 1시간 = 3600초
+    
+    async def send_no_event_notification(self, service_name: str, service_type: str):
+        """조건을 만족하지 않았을 때 알림 발송"""
+        try:
+            now = datetime.now()
+            
+            if service_type == "hourly":
+                # 1시간마다 알림
+                if not self.should_send_hourly_notification(service_name):
+                    return
+                
+                message = f"📢 **{service_name.replace('_', ' ').title()} 정기 알림**\n"
+                message += f"⏰ 시간: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                message += f"📋 상태: 중요 {service_name.replace('_', ' ').title()}가 발생하지 않았습니다\n"
+                message += f"🔄 다음 체크: 1시간 후"
+                
+                self.last_notifications[service_name] = now
+                
+            elif service_type == "market_close":
+                # 장 마감 시간 알림
+                if not self.is_market_close_time():
+                    return
+                
+                message = f"📢 **{service_name.replace('_', ' ').title()} 장 마감 알림**\n"
+                message += f"⏰ 시간: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                message += f"📋 상태: 중요 {service_name.replace('_', ' ').title()} 조건이 확인되지 않았습니다\n"
+                message += f"🔄 다음 체크: 내일 장 마감 시간"
+                
+                self.last_notifications[service_name] = now
+            
+            # 텔레그램 알림 발송
+            await self.telegram_bot.send_message_async(message)
+            self.logger.info(f"✅ {service_name} 조건 미충족 알림 발송 완료")
+            
+        except Exception as e:
+            self.logger.error(f"❌ {service_name} 조건 미충족 알림 발송 실패: {e}")
+
+    async def send_no_event_notifications(self):
+        """조건을 만족하지 않은 서비스들에 대한 알림 발송"""
+        try:
+            for service_name, config in self.services.items():
+                if not config["enabled"]:
+                    continue
+                
+                service_type = config.get("type", "hourly")
+                
+                # 뉴스/공시 서비스: 1시간마다 알림
+                if service_type == "hourly":
+                    await self.send_no_event_notification(service_name, "hourly")
+                
+                # 차트/수급 서비스: 장 마감 시간 알림
+                elif service_type == "market_close":
+                    await self.send_no_event_notification(service_name, "market_close")
+                    
+        except Exception as e:
+            self.logger.error(f"❌ 조건 미충족 알림 발송 실패: {e}")
 
     async def send_check_signal(self, service_name: str, port: int) -> Dict:
         """개별 서비스에 체크 신호 전송"""
@@ -106,6 +191,9 @@ class SimpleCheckScheduler:
                     self.logger.info(f"🚀 실행된 서비스: {', '.join(executed_services)}")
                 else:
                     self.logger.debug("😴 모든 서비스가 대기 상태")
+                    
+                    # 조건 미충족 알림 발송
+                    await self.send_no_event_notifications()
             
             return results
             
@@ -146,7 +234,8 @@ class SimpleCheckScheduler:
             self.logger.info("📋 관리 대상 서비스:")
             for service_name, config in self.services.items():
                 status = "활성" if config["enabled"] else "비활성"
-                self.logger.info(f"   • {service_name} (포트: {config['port']}) - {status}")
+                notification_type = config.get("type", "hourly")
+                self.logger.info(f"   • {service_name} (포트: {config['port']}) - {status} - 알림: {notification_type}")
             
             self.is_running = True
             
@@ -154,7 +243,8 @@ class SimpleCheckScheduler:
             await self.telegram_bot.send_message_async(
                 "🚀 **단순 체크 신호 스케줄러 시작**\n"
                 "• 10분마다 모든 서비스에 체크 신호 전송\n"
-                "• 각 서비스가 독립적으로 실행 시간 판단"
+                "• 각 서비스가 독립적으로 실행 시간 판단\n"
+                "• 조건 미충족 시 정기 알림 발송"
             )
             
             # 메인 루프: 10분마다 체크 신호 전송
@@ -204,7 +294,11 @@ class SimpleCheckScheduler:
             "current_time": datetime.now().isoformat(),
             "services": self.services,
             "check_interval": "10분마다",
-            "architecture": "분산형 체크 신호 방식"
+            "architecture": "분산형 체크 신호 방식",
+            "notification_types": {
+                "hourly": "1시간마다 조건 미충족 알림",
+                "market_close": "장 마감 시간 조건 미충족 알림"
+            }
             }
 
 async def main():

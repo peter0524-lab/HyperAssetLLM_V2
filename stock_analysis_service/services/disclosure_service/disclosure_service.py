@@ -6,14 +6,15 @@
 - 유사 과거 사례 검색
 - 주가 영향 예측
 """
+
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 import sys
-import os
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
@@ -94,7 +95,8 @@ class DisclosureService:
             self.logger.error(f"❌ 사용자 설정 로드 실패 (기본값 유지): {e}")
             # 실패시 기본 종목 설정
             self.stocks_config = {
-                "006800": {"name": "미래에셋증권", "enabled": True}
+                "005930": {"name": "삼성전자", "enabled": True},
+                "000660": {"name": "SK하이닉스", "enabled": True}
             }
     
     async def set_user_id(self, user_id):
@@ -352,8 +354,11 @@ class DisclosureService:
             message += f"\n━━━━━━━━━━━━━━━━━━━\n"
             message += f"⚠️ <i>AI 분석 정보이며, 투자 참고용입니다.</i>"
 
-            # 텔레그램 알림 전송
-            await self.telegram_bot.send_message_async(message)
+            # 🆕 사용자별 알림 전송 (설정 확인)
+            await self._send_user_notifications(disclosure, message, analysis)
+            
+            # 🆕 채널 알림 전송 (기존 방식 유지)
+            await self._send_channel_notification(message)
             
             # 최근 알람 메시지 저장
             await save_latest_signal(message)
@@ -362,6 +367,78 @@ class DisclosureService:
 
         except Exception as e:
             self.logger.error(f"공시 알림 전송 실패: {e}")
+    
+    async def _send_user_notifications(self, disclosure: Dict, message: str, analysis: Dict):
+        """사용자별 알림 전송 (설정 확인 + 종목 필터링)"""
+        try:
+            # UserConfigLoader import
+            from shared.service_config.user_config_loader import UserConfigLoader
+            
+            config_loader = UserConfigLoader()
+            stock_code = disclosure.get("stock_code", "")
+            
+            # 모든 활성 사용자 조회 (현재는 테스트용으로 고정 사용자)
+            # TODO: 실제로는 데이터베이스에서 활성 사용자 목록을 조회해야 함
+            test_users = ["1"]  # 테스트용 사용자 ID
+            
+            for user_id in test_users:
+                try:
+                    # 🆕 사용자가 이 종목에 관심이 있는지 확인
+                    is_interested = await config_loader.is_user_interested_in_stock(user_id, stock_code)
+                    if not is_interested:
+                        self.logger.debug(f"⚠️ 사용자가 종목에 관심 없음: {user_id} - {stock_code}")
+                        continue
+                    
+                    # 사용자별 알림 설정 조회
+                    notification_settings = await config_loader.get_user_notification_settings(user_id)
+                    
+                    # 공시 알림이 활성화되어 있고, 전체 알림이 활성화된 경우만 전송
+                    if (notification_settings.get("enabled", True) and 
+                        notification_settings.get("disclosure_alerts", True)):
+                        
+                        # 사용자별 텔레그램 설정 조회
+                        telegram_config = await config_loader.get_user_telegram_config(user_id)
+                        if telegram_config and telegram_config.get("enabled", True):
+                            # 개별 사용자에게 알림 전송
+                            await self._send_user_notification(user_id, message, telegram_config)
+                            self.logger.info(f"✅ 사용자 공시 알림 전송 완료: {user_id} - {stock_code}")
+                        else:
+                            self.logger.debug(f"⚠️ 사용자 텔레그램 비활성화: {user_id}")
+                    else:
+                        self.logger.debug(f"⚠️ 사용자 공시 알림 비활성화: {user_id}")
+                        
+                except Exception as user_error:
+                    self.logger.error(f"❌ 사용자 공시 알림 전송 실패: {user_id} - {user_error}")
+                    
+        except Exception as e:
+            self.logger.error(f"❌ 사용자별 공시 알림 전송 실패: {e}")
+    
+    async def _send_user_notification(self, user_id: str, message: str, telegram_config: Dict):
+        """개별 사용자에게 알림 전송"""
+        try:
+            # 사용자별 채팅 ID 사용
+            chat_id = telegram_config.get("chat_id")
+            if chat_id:
+                # 텔레그램 봇으로 개별 사용자에게 전송
+                from shared.apis.telegram_api import TelegramBotClient
+                telegram_bot = TelegramBotClient()
+                telegram_bot.send_message(message, str(chat_id))
+                self.logger.info(f"✅ 개별 사용자 공시 알림 전송 완료: {user_id} -> {chat_id}")
+            else:
+                self.logger.warning(f"⚠️ 사용자 채팅 ID 없음: {user_id}")
+                
+        except Exception as e:
+            self.logger.error(f"❌ 개별 사용자 공시 알림 전송 실패: {user_id} - {e}")
+    
+    async def _send_channel_notification(self, message: str):
+        """채널 알림 전송 (기존 방식)"""
+        try:
+            from shared.apis.telegram_api import TelegramBotClient
+            telegram_bot = TelegramBotClient()
+            await telegram_bot.send_message_async(message)
+            self.logger.info("✅ 채널 공시 알림 전송 완료")
+        except Exception as e:
+            self.logger.error(f"❌ 채널 공시 알림 전송 실패: {e}")
 
     
     def _create_disclosure_analysis_prompt(self, disclosure_content: str, stock_name: str) -> str:
@@ -478,54 +555,8 @@ class DisclosureService:
             return "미래에셋증권"
         
         
-    def load_stock_codes(self):
-        """종목 코드 로드"""
-        try:
-            # 여러 경로 시도
-            possible_paths = [
-                "config/stocks.json",
-                "../../config/stocks.json",
-                "../../../config/stocks.json",
-                "stock_analysis_service/config/stocks.json"
-            ]
-            
-            stocks_data = None
-            used_path = None
-            
-            for path in possible_paths:
-                try:
-                    with open(path, "r", encoding="utf-8") as f:
-                        stocks_data = json.load(f)
-                        used_path = path
-                        logger.debug(f"✅ 종목 코드 파일 로드 성공: {path}")
-                        break
-                except FileNotFoundError:
-                    continue
-                except Exception as e:
-                    logger.debug(f"❌ 종목 코드 파일 로드 실패 [{path}]: {e}")
-                    continue
-            
-            if stocks_data:
-                self.stock_codes = [stock["code"] for stock in stocks_data["stocks"]]
-                self.stock_names = {
-                    stock["code"]: stock["name"] for stock in stocks_data["stocks"]
-                }
-                logger.info(f"✅ 종목 코드 로드 성공: {len(self.stock_codes)}개 종목 ({used_path})")
-            else:
-                raise FileNotFoundError("모든 경로에서 stocks.json 파일을 찾을 수 없습니다")
-                
-        except Exception as e:
-            logger.error(f"❌ 종목 코드 로드 실패: {e}")
-            logger.warning("⚠️ 기본 종목 코드 사용: 미래에셋증권")
-            self.stock_codes = ["006800"]
-            self.stock_names = {"006800": "미래에셋증권"}
-        
-        
     async def process_disclosure_pipeline_db(self, stock_code: str) -> None:
         """1년치 공시 처리 파이프라인 실행 db 저장용"""
-        if not stock_code:
-            self.logger.warning("stock_code가 제공되지 않았습니다. 기본값 '006800'으로 설정합니다.")
-            stock_code = "006800"
         try:
             # 공시 데이터 가져오기 (1년치)
             disclosures = await self.fetch_disclosure_data(stock_code)
@@ -582,63 +613,8 @@ class DisclosureService:
             self.logger.error(f"공시 파이프라인 실행 중 오류 발생: {stock_code}, 오류: {e}")
     
     
-    async def process_latest_disclosure_pipeline(self, stock_code: str) -> None:
-        """가장 최신 공시만 처리하는 파이프라인 실행 excute 엔드포인트용 (중복 체크 건너뜀)"""
-        if not stock_code:
-            self.logger.warning("stock_code가 제공되지 않았습니다. 기본값 '006800'으로 설정합니다.")
-            stock_code = "006800"
-        try:
-            # 공시 데이터 가져오기 (가장 최신 공시가 첫 번째에 있다고 가정)
-            disclosures = await self.fetch_disclosure_data(stock_code)
-            if not disclosures:
-                self.logger.info(f"최신 공시 데이터 없음: {stock_code}")
-                return
-
-            # 가장 최신 공시 (첫 번째 항목)만 선택
-            latest_disclosure = disclosures[0]
-
-            try:
-                rcept_no = latest_disclosure.get("rcept_no")
-                self.logger.info(f"최신 공시 처리 시작: {rcept_no} (중복 체크 건너뜀)")
-
-                # 처리된 공시인지 확인하는 단계 건너뜀
-
-                # 공시 상세 정보 가져오기
-                disclosure_detail = await self.dart_client.get_disclosure_detail(rcept_no)
-                if not disclosure_detail:
-                    self.logger.warning(f"최신 공시 상세 정보 조회 실패: {rcept_no}")
-                    return
-                
-                # LLM 분석 수행 (통합된 방식)
-                stock_name = await self.get_stock_name(stock_code)
-                llm_analysis = await self.analyze_disclosure(disclosure_detail, stock_name)
-                
-                # 유사사례 검색
-                similar_case = await self.find_similar_cases_from_mysql(latest_disclosure)
-                similar_cases = [similar_case] if similar_case else []
-
-                # 알림 전송
-                await self.send_disclosure_notification(
-                    disclosure=latest_disclosure,
-                    analysis=llm_analysis,
-                    similar_cases=similar_cases
-                )
-                
-                # 분석 결과 저장
-                await self.save_disclosure_data(latest_disclosure, llm_analysis)
-                self.logger.info(f"최신 공시 처리 완료: {rcept_no}")
-
-            except Exception as e:
-                self.logger.error(f"최신 공시 처리 중 오류 발생: {rcept_no}, 오류: {e}")
-
-        except Exception as e:
-            self.logger.error(f"최신 공시 파이프라인 실행 중 오류 발생: {stock_code}, 오류: {e}")
-        
     async def process_disclosure_pipeline(self, stock_code: str) -> None:
         """공시 처리 파이프라인 실행"""
-        if not stock_code:
-            self.logger.warning("stock_code가 제공되지 않았습니다. 기본값 '006800'으로 설정합니다.")
-            stock_code = "006800"
         try:
             # 공시 데이터 가져오기
             disclosures = await self.fetch_disclosure_data(stock_code)
@@ -840,61 +816,6 @@ async def execute_disclosure_analysis() -> Dict:
     except Exception as e:
         logger.error(f"❌ 공시 분석 실행 실패: {e}")
         return {"success": False, "error": str(e)}
-    
-
-async def execute_disclosure_analysis_forexcute() -> Dict:
-    """공시 분석 실행"""
-    global last_execution_time
-    
-    try:
-        logger.info("🚀 공시 분석 실행 시작")
-        
-        # 공시 서비스 인스턴스 확인
-        service = get_disclosure_service()
-        if service is None:
-            logger.error("❌ 공시 서비스 인스턴스가 초기화되지 않음")
-            return {"success": False, "error": "서비스 인스턴스 없음"}
-        
-        # 종목 정보 로드
-        with open(project_root / "config" / "stocks.json", encoding="utf-8") as f:
-            stocks_config = json.load(f)
-
-        total_disclosures = 0
-        processed_stocks = []
-        
-        # 모든 종목에 대해 공시 분석 실행
-        for stock in stocks_config["stocks"]:
-            stock_code = stock["code"]
-            
-            try:
-                logger.info(f"📋 {stock_code} 공시 분석 시작")
-                
-                # 종목별 공시 처리 파이프라인 실행
-                await service.process_latest_disclosure_pipeline(stock_code)
-                
-                processed_stocks.append(stock_code)
-                logger.info(f"✅ {stock_code} 공시 분석 완료")
-                
-            except Exception as e:
-                logger.error(f"❌ {stock_code} 공시 분석 실패: {e}")
-                continue
-        
-        # 실행 시간 업데이트
-        last_execution_time = datetime.now()
-        
-        result = {
-            "success": True,
-            "processed_stocks": len(processed_stocks),
-            "total_disclosures": total_disclosures,
-            "execution_time": last_execution_time.isoformat()
-        }
-        
-        logger.info(f"✅ 공시 분석 완료: {len(processed_stocks)}개 종목")
-        return result
-        
-    except Exception as e:
-        logger.error(f"❌ 공시 분석 실행 실패: {e}")
-        return {"success": False, "error": str(e)}
 
 # FastAPI 엔드포인트
 @app.post("/set-user/{user_id}")
@@ -954,15 +875,6 @@ async def get_latest_signal():
 async def execute_disclosure_analysis_endpoint(request: Request):
     """공시 분석 실행 - 사용자별 동적 처리"""
     try:
-        # --- 로그 추가 ---
-        print("="*50)
-        print("DISCLOSURE LOG:   최종 목적지 도착!")
-        print("DISCLOSURE LOG: 게이트웨이로부터 /execute 요청을 성공적으로 받았습니다.")
-        print(f"DISCLOSURE LOG: 요청 헤더: {request.headers}")
-        print("DISCLOSURE LOG: 지금부터 실제 공시 분석을 시작합니다...")
-        print("="*50)
-        # --- 로그 추가 끝 ---
-
         # Header에서 user_id 추출 (문자열로 처리)
         user_id = request.headers.get("X-User-ID", "1")
         
@@ -970,18 +882,10 @@ async def execute_disclosure_analysis_endpoint(request: Request):
         service = get_disclosure_service()
         if service.current_user_id != user_id:
             await service.set_user_id(user_id)
-            logger.info(f" 사용자 컨텍스트 변경: {user_id}")
+            logger.info(f"🔄 사용자 컨텍스트 변경: {user_id}")
         
         # 공시 분석 실행
-        result = await execute_disclosure_analysis_forexcute()
-        
-        # --- 로그 추가 ---
-        print("="*50)
-        print("DISCLOSURE LOG:  분석 완료! 결과를 게이트웨이로 반환합니다.")
-        print(f"DISCLOSURE LOG: 반환 결과: {result}")
-        print("="*50)
-        # --- 로그 추가 끝 ---
-        
+        result = await execute_disclosure_analysis()
         return result
         
     except Exception as e:
@@ -1133,12 +1037,6 @@ def main():
     except Exception as e:
         print(f"서비스 실행 실패: {e}")
 
+
 if __name__ == "__main__":
-    # --- process_disclosure_pipeline 테스트를 원할 경우 아래 코드의 주석을 해제하세요 ---
-    #asyncio.run(test_process_pipeline_function())
-
-    # --- execute_disclosure_analysis 테스트를 원할 경우 아래 코드의 주석을 해제하세요 ---
-    # asyncio.run(test_single_function())
-
-    # --- 원래 서버를 실행하려면 아래 코드의 주석을 해제하고 위 코드를 주석 처리하세요 ---
     main()

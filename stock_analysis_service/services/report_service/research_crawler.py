@@ -1,7 +1,6 @@
 import asyncio
 import time
 import re
-import os
 from datetime import datetime
 from io import BytesIO
 import aiohttp # For async HTTP requests
@@ -12,7 +11,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from urllib.parse import unquote, urlparse, parse_qs
 from webdriver_manager.chrome import ChromeDriverManager
-
 # from unstructured.partition.pdf import partition_pdf  # 임시 주석처리
 import logging
 

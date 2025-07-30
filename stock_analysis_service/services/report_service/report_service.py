@@ -34,7 +34,6 @@ from webdriver_manager.chrome import ChromeDriverManager
 import hashlib
 import time
 import schedule
-import os
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
@@ -47,20 +46,12 @@ from shared.apis.telegram_api import TelegramBotClient
 from config.env_local import get_config
 from shared.user_config.user_config_manager import user_config_manager
 from shared.service_config.user_config_loader import get_config_loader
-from fastapi.middleware.cors import CORSMiddleware
+
 # FastAPI 추가
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 import uvicorn
 
 app = FastAPI(title="Weekly Report Service", version="1.0.0")
-# CORS 설정
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 class ReportService:
     """주간 보고서 서비스 클래스"""
@@ -80,7 +71,7 @@ class ReportService:
         
         self.mysql_client = get_mysql_client()
         # ChromaDB 대시보드와 동일한 경로를 사용하도록 환경 변수 설정
-        
+        import os
         news_service_chroma_path = os.path.join(project_root, "services", "news_service", "data", "chroma")
         os.environ["CHROMADB_PERSIST_DIRECTORY"] = news_service_chroma_path
         self.vector_db = VectorDBClient()
@@ -89,14 +80,12 @@ class ReportService:
         self.research_crawler = ResearchCrawler()
 
         # 로깅 설정
-        
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
         self.logger = logging.getLogger(__name__)
         
-  
         # 사용자별 설정 로드 (MySQL에서 stock_code만 덮어쓰기)
         asyncio.create_task(self._load_user_settings())
         
@@ -445,10 +434,6 @@ class ReportService:
 
     async def process_weekly_report(self, stock_code: str):
         """주간 보고서 처리"""
-        
-        if not stock_code:
-            self.logger.warning("stock_code가 제공되지 않았습니다. 기본값 '006800'으로 설정합니다.")
-            stock_code = "006800"
         try:
             self.logger.info(f"주간 보고서 처리 시작: {stock_code}")
 
@@ -522,11 +507,15 @@ class ReportService:
                 stock_code, comprehensive_report_data["keywords"]
             )
             self.logger.info(f"주간 보고서 처리 완료: {stock_code}")
+   
+
+            
+
+            self.logger.info(f"주간 보고서 처리 완료: {stock_code}")
 
         except Exception as e:
             self.logger.error(f"주간 보고서 처리 실패: {e}")
 
-    
 
     async def run_service(self):
         """주간 보고서 서비스 실행"""
@@ -732,7 +721,7 @@ async def execute_weekly_report() -> Dict:
                 logging.info(f"📊 {stock_code} 주간 보고서 생성 중...")
                 
                 # 실제 보고서 생성 로직은 ReportService 클래스의 메서드를 호출
-                await report_service.process_weekly_report(stock_code)
+                # 예: await report_service.generate_weekly_report(stock_code)
                 
                 processed_stocks.append(stock_code)
                 total_reports += 1
@@ -769,7 +758,6 @@ async def execute_weekly_report() -> Dict:
 async def execute_report_generation(request: Request):
     """리포트 생성 실행 - 사용자별 동적 처리"""
     try:
-        
         # Header에서 user_id 추출 (문자열로 처리)
         user_id = request.headers.get("X-User-ID", "1")
         
@@ -778,7 +766,6 @@ async def execute_report_generation(request: Request):
         if service.current_user_id != user_id:
             await service.set_user_id(user_id)
             logging.info(f"🔄 사용자 컨텍스트 변경: {user_id}")
-        
         
         # 주간 보고서 생성 실행
         result = await execute_weekly_report()

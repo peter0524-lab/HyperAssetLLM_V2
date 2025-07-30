@@ -28,8 +28,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
-
-
 # 모니터링 및 메트릭 (옵셔널)
 try:
     from prometheus_client import Counter, Histogram, Gauge, generate_latest
@@ -873,7 +871,6 @@ async def report_check_schedule():
 @app.post("/api/report/execute")
 async def report_execute(request: Request):
     # user_id 추출 (Header 또는 Query Param에서)
-    print("✅ /api/report/execute 진입함")
     user_id = request.headers.get("X-User-ID") or request.query_params.get("user_id", "1")
     headers = {"X-User-ID": str(user_id)}
     return await gateway.forward_request("report", "POST", "/execute",
@@ -907,6 +904,7 @@ async def flow_execute(request: Request):
 @app.get("/api/flow/analysis/{stock_code}")
 async def flow_analysis_result(stock_code: str):
     return await gateway.forward_request("flow_analysis", "GET", f"/analysis/{stock_code}")
+
 
 # === 중앙 집중식 사용자 설정 관리 ===
 @app.get("/api/user/health")
