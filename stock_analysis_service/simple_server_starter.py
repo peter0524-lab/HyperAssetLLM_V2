@@ -173,8 +173,8 @@ class ServerStarterHandler(BaseHTTPRequestHandler):
         subprocess.Popen(
             cmd,
             cwd=PROJECT_ROOT,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            # stdout=subprocess.DEVNULL,
+            # stderr=subprocess.DEVNULL,
             start_new_session=True
         )
         logger.info("📡 Server Starter 시작됨")
@@ -189,8 +189,8 @@ class ServerStarterHandler(BaseHTTPRequestHandler):
         subprocess.Popen(
             cmd,
             cwd=PROJECT_ROOT / "services" / "api_gateway",
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            #stdout=subprocess.DEVNULL,
+            #stderr=subprocess.DEVNULL,
             start_new_session=True
         )
         logger.info("🌐 API Gateway 시작됨")
@@ -205,8 +205,8 @@ class ServerStarterHandler(BaseHTTPRequestHandler):
         subprocess.Popen(
             cmd,
             cwd=PROJECT_ROOT / "services" / "user_service",
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            # stdout=subprocess.DEVNULL,
+            # stderr=subprocess.DEVNULL,
             start_new_session=True
         )
         logger.info("👤 User Service 시작됨")
@@ -221,8 +221,8 @@ class ServerStarterHandler(BaseHTTPRequestHandler):
         subprocess.Popen(
             cmd,
             cwd=PROJECT_ROOT / "services" / "orchestrator",
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            #stdout=subprocess.DEVNULL,
+            #stderr=subprocess.DEVNULL,
             start_new_session=True
         )
         logger.info("🎯 Orchestrator 시작됨")
@@ -237,8 +237,8 @@ class ServerStarterHandler(BaseHTTPRequestHandler):
         subprocess.Popen(
             cmd,
             cwd=PROJECT_ROOT / "services" / "news_service",
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            #stdout=subprocess.DEVNULL,
+            #stderr=subprocess.DEVNULL,
             start_new_session=True
         )
         logger.info("📰 News Service 시작됨")
@@ -253,8 +253,8 @@ class ServerStarterHandler(BaseHTTPRequestHandler):
         subprocess.Popen(
             cmd,
             cwd=PROJECT_ROOT / "services" / "disclosure_service",
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            #stdout=subprocess.DEVNULL,
+            #stderr=subprocess.DEVNULL,
             start_new_session=True
         )
         logger.info("📋 Disclosure Service 시작됨")
@@ -269,8 +269,8 @@ class ServerStarterHandler(BaseHTTPRequestHandler):
         subprocess.Popen(
             cmd,
             cwd=PROJECT_ROOT / "services" / "report_service",
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            #stdout=subprocess.DEVNULL,
+            #stderr=subprocess.DEVNULL,
             start_new_session=True
         )
         logger.info("📊 Report Service 시작됨")
@@ -285,8 +285,8 @@ class ServerStarterHandler(BaseHTTPRequestHandler):
         subprocess.Popen(
             cmd,
             cwd=PROJECT_ROOT / "services" / "chart_service",
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            #stdout=subprocess.DEVNULL,
+            #stderr=subprocess.DEVNULL,
             start_new_session=True
         )
         logger.info("📈 Chart Service 시작됨")
@@ -301,8 +301,8 @@ class ServerStarterHandler(BaseHTTPRequestHandler):
         subprocess.Popen(
             cmd,
             cwd=PROJECT_ROOT / "services" / "flow_analysis_service",
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            #stdout=subprocess.DEVNULL,
+            #stderr=subprocess.DEVNULL,
             start_new_session=True
         )
         logger.info("💰 Flow Analysis Service 시작됨")

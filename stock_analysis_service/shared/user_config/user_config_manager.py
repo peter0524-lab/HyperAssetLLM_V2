@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from shared.database.mysql_client import MySQLClient
 from .user_config_schema import CREATE_ALL_TABLES
-
+import os
 logger = logging.getLogger(__name__)
 
 class UserConfigManager:

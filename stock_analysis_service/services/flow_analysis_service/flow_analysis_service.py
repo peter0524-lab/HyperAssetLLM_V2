@@ -5,7 +5,7 @@
 - 복합 트리거 패턴 감지 및 알림
 - 과거 유사 사례 검색 (SQL Only, RAG 없음)
 """
-
+import os
 import asyncio
 import json
 import logging

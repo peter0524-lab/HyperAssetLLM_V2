@@ -5,7 +5,7 @@
 - 8개 조건식 모니터링
 - 조건 만족 시 DB 저장
 """
-
+import os
 import asyncio
 import json
 import logging
