@@ -2,7 +2,7 @@
 LLM Manager - 통합 LLM 클라이언트 관리자
 사용자가 선택한 모델에 따라 적절한 클라이언트를 반환
 """
-
+import os
 import logging
 from typing import Optional, Dict, Any
 from .hyperclova_client import HyperCLOVAClient
@@ -89,7 +89,7 @@ class LLMManager:
                 client = self.clients["hyperclova"]
             
             # LLM 응답 생성
-            response = await client.generate_comprehensive_report_and_keywords(prompt, **kwargs)
+            response = await client.generate_response(prompt, **kwargs)
             
             self.logger.debug(f"✅ LLM 응답 생성 완료: {client.__class__.__name__}")
             return response

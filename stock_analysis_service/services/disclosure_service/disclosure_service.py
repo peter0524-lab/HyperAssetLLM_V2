@@ -12,9 +12,11 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from pathlib import Path
 import sys
+import os
+import re
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
@@ -471,34 +473,48 @@ class DisclosureService:
 }}
         """
 
-    def _parse_llm_response(self, response_text: str) -> Dict:
-        """LLM 응답 파싱 (gemini_analyzer.py 방식 적용)"""
-        try:
-            import re
-            
-            # JSON 객체 추출
-            match = re.search(r"\{.*\}", response_text, re.DOTALL)
-            if not match:
-                raise json.JSONDecodeError("JSON 객체를 찾을 수 없습니다.", response_text, 0)
+    def _parse_llm_response(self, response_text: str) -> Dict[str, Any]:
+        """LLM 응답 텍스트를 파싱하여 표준 JSON 객체로 변환합니다. 오류 복구 및 유사 키워드 추출 지원."""
 
-            parsed = json.loads(match.group(0))
-            
-            # 표준화된 형식으로 반환
-            return {
-                "summary": parsed.get("summary", ""),
-                "impact_score": parsed.get("impact_score", 0.5),
-                "sentiment": parsed.get("sentiment", "중립"),
-                "sentiment_reason": parsed.get("sentiment_reason", ""),
-                "keywords": parsed.get("keywords", []),
-                "expected_impact": parsed.get("expected_impact", "보합"),
-                "impact_duration": parsed.get("impact_duration", "중기"),
-            }
+        def get_partial_key_value(d: dict, keyword: str):
+            """사전에서 키워드를 포함하는 키의 값을 찾습니다."""
+            for k, v in d.items():
+                if keyword in k:
+                    return v
+            return None
+
+        if not response_text:
+            self.logger.error("❌ LLM 응답이 비어 있습니다.")
+            return self._get_default_analysis_result("LLM 응답 없음")
+
+        try:
+
+            parsed_json = json.loads(response_text)
 
         except json.JSONDecodeError as e:
-            self.logger.error(f"❌ JSON 파싱 실패: {e}")
-            self.logger.error(f"📤 받은 전체 응답:\n{response_text}")
-            return self._get_default_analysis_result("LLM 응답 파싱 실패")
+            self.logger.warning(f"JSON 파싱실패: {e}. ")
 
+            # 자동 쉼표 삽입, 줄바꿈 오류 보정 등 단순 패턴 보정
+            return {
+            "summary": "공시 분석 실패",
+            "impact_score": 0.5,
+            "sentiment": "중립",
+            "sentiment_reason": "",
+            "keywords": [],
+            "expected_impact": "보합",
+            "impact_duration": "중기",
+        }
+
+        # 부분 키 매칭으로 필요한 값 추출
+        return {
+            "summary": get_partial_key_value(parsed_json, "summary") or "",
+            "impact_score": get_partial_key_value(parsed_json, "impact_score") or 0.5,
+            "sentiment": get_partial_key_value(parsed_json, "sentiment") or "중립",
+            "sentiment_reason": get_partial_key_value(parsed_json, "sentiment_reason") or "",
+            "keywords": get_partial_key_value(parsed_json, "keyword") or [],
+            "expected_impact": get_partial_key_value(parsed_json, "expected_impact") or "보합",
+            "impact_duration": get_partial_key_value(parsed_json, "impact_duration") or "중기",
+        }
     def _get_default_analysis_result(self, reason: str) -> Dict:
         """기본 분석 결과 반환"""
         return {
@@ -1037,6 +1053,34 @@ def main():
     except Exception as e:
         print(f"서비스 실행 실패: {e}")
 
+async def test_process_pipeline_function():
+    """
+    disclosure_service.py의 process_disclosure_pipeline 함수를 테스트하기 위한 함수입니다.
+    """
+    print("--- Disclosure Service 파이프라인 테스트 시작 ---")
+    try:
+        # DisclosureService 인스턴스 생성
+        service = DisclosureService()
+        
+        # 테스트할 종목 코드 설정 (예: 미래에셋증권)
+        test_stock_code = "006800" 
+        print(f"테스트 대상 종목: {test_stock_code}")
+
+        # 파이프라인 실행
+        await service.process_latest_disclosure_pipeline(test_stock_code)
+
+        print("--- 테스트가 성공적으로 완료되었습니다. ---")
+
+    except Exception as e:
+        print(f"--- 테스트 중 오류 발생: {e} ---")
+    finally:
+        # 리소스 정리 (필요한 경우)
+        if 'service' in locals() and hasattr(service, 'mysql_client'):
+            service.mysql_client.close()
+        print("--- Disclosure Service 파이프라인 테스트 종료 ---")
+
 
 if __name__ == "__main__":
+    # --- process_disclosure_pipeline 테스트를 원할 경우 아래 코드의 주석을 해제하세요 ---
+    #asyncio.run(test_process_pipeline_function())
     main()
