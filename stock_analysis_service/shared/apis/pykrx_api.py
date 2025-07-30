@@ -63,45 +63,92 @@ class PyKRXAPIClient:
                 }
             
             # 데이터 추출 (단위: 원)
-            # pykrx는 기관투자자, 외국인투자자, 개인투자자 순매수대금을 제공
             row = institutional_data.iloc[0]
-            
-            # 컬럼명이 바뀔 수 있으므로 유연하게 처리
             columns = institutional_data.columns.tolist()
             
-            # 기관 데이터 (기관계 + 기타기관)
+            # 디버깅을 위한 컬럼명 출력
+            self.logger.info(f"Available columns: {columns}")
+            self.logger.info(f"Row data: {row.to_dict()}")
+            
+            # 기관 데이터 추출
             inst_net = 0
-            for col in columns:
-                if '기관' in col and '순매수' in col:
-                    inst_net += int(row[col]) if pd.notna(row[col]) else 0
-            
-            # 외국인 데이터
             foreign_net = 0
-            for col in columns:
-                if '외국인' in col and '순매수' in col:
-                    foreign_net += int(row[col]) if pd.notna(row[col]) else 0
-            
-            # 개인 데이터
             individual_net = 0
+            
+            # 실제 컬럼명에 맞춰 데이터 추출
             for col in columns:
-                if '개인' in col and '순매수' in col:
-                    individual_net += int(row[col]) if pd.notna(row[col]) else 0
+                col_lower = col.lower()
+                value = int(row[col]) if pd.notna(row[col]) else 0
+                
+                if '기관' in col or 'institutional' in col_lower:
+                    inst_net += value
+                elif '외국인' in col or 'foreign' in col_lower:
+                    foreign_net += value
+                elif '개인' in col or 'individual' in col_lower:
+                    individual_net += value
+            
+            # 만약 위 방법으로 데이터를 찾지 못했다면, 다른 방법 시도
+            if inst_net == 0 and foreign_net == 0 and individual_net == 0:
+                # 컬럼명을 더 구체적으로 찾기
+                for col in columns:
+                    col_lower = col.lower()
+                    value = int(row[col]) if pd.notna(row[col]) else 0
+                    
+                    # 기관 관련 컬럼
+                    if any(keyword in col_lower for keyword in ['기관', 'institutional', '기관투자자']):
+                        inst_net += value
+                    # 외국인 관련 컬럼
+                    elif any(keyword in col_lower for keyword in ['외국인', 'foreign', '외국인투자자']):
+                        foreign_net += value
+                    # 개인 관련 컬럼
+                    elif any(keyword in col_lower for keyword in ['개인', 'individual', '개인투자자']):
+                        individual_net += value
+            
+            # 여전히 데이터를 찾지 못했다면, 직접 컬럼 인덱스로 접근
+            if inst_net == 0 and foreign_net == 0 and individual_net == 0:
+                try:
+                    # 일반적인 pykrx 컬럼 순서: 기관, 외국인, 개인
+                    if len(columns) >= 3:
+                        inst_net = int(row.iloc[0]) if pd.notna(row.iloc[0]) else 0
+                        foreign_net = int(row.iloc[1]) if pd.notna(row.iloc[1]) else 0
+                        individual_net = int(row.iloc[2]) if pd.notna(row.iloc[2]) else 0
+                except Exception as e:
+                    self.logger.warning(f"컬럼 인덱스 접근 실패: {e}")
             
             # 총 거래대금 조회
             total_value = 0
+            close_price = 0
+            volume = 0
+            
             try:
                 ohlcv = stock.get_market_ohlcv_by_date(target_date, target_date, stock_code)
                 if not ohlcv.empty:
-                    total_value = int(ohlcv.iloc[0]['거래대금']) if '거래대금' in ohlcv.columns else 0
-                    close_price = float(ohlcv.iloc[0]['종가']) if '종가' in ohlcv.columns else 0
-                    volume = int(ohlcv.iloc[0]['거래량']) if '거래량' in ohlcv.columns else 0
-                else:
-                    close_price = 0
-                    volume = 0
+                    ohlcv_row = ohlcv.iloc[0]
+                    ohlcv_columns = ohlcv.columns.tolist()
+                    
+                    # 거래대금 컬럼 찾기
+                    for col in ohlcv_columns:
+                        if '거래대금' in col or 'trading_value' in col.lower():
+                            total_value = int(ohlcv_row[col]) if pd.notna(ohlcv_row[col]) else 0
+                        elif '종가' in col or 'close' in col.lower():
+                            close_price = float(ohlcv_row[col]) if pd.notna(ohlcv_row[col]) else 0
+                        elif '거래량' in col or 'volume' in col.lower():
+                            volume = int(ohlcv_row[col]) if pd.notna(ohlcv_row[col]) else 0
+                    
+                    # 만약 찾지 못했다면 인덱스로 접근
+                    if total_value == 0 and close_price == 0 and volume == 0:
+                        if len(ohlcv_columns) >= 4:  # OHLCV 순서
+                            close_price = float(ohlcv_row.iloc[3]) if pd.notna(ohlcv_row.iloc[3]) else 0  # 종가
+                            volume = int(ohlcv_row.iloc[4]) if pd.notna(ohlcv_row.iloc[4]) else 0  # 거래량
+                            total_value = close_price * volume  # 거래대금 계산
+                            
+                self.logger.info(f"OHLCV 데이터: close_price={close_price}, volume={volume}, total_value={total_value}")
+                
             except Exception as e:
-                logger.warning(f"OHLCV 데이터 조회 실패: {e}")
-                close_price = 0
-                volume = 0
+                self.logger.warning(f"OHLCV 데이터 조회 실패: {e}")
+            
+            # 결과 로깅
+            self.logger.info(f"수급 데이터: inst_net={inst_net}, foreign_net={foreign_net}, individual_net={individual_net}")
             
             return {
                 "status": "success",
@@ -118,7 +165,7 @@ class PyKRXAPIClient:
             }
             
         except Exception as e:
-            logger.error(f"EOD 수급 데이터 조회 실패: {e}")
+            self.logger.error(f"EOD 수급 데이터 조회 실패: {e}")
             return {
                 "status": "error",
                 "message": str(e),

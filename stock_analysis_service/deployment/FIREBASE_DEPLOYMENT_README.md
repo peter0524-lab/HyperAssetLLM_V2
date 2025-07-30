@@ -1,27 +1,47 @@
-# 🚀 Firebase + AWS 하이브리드 배포 가이드
+# 🚀 HyperAsset LLM Firebase 배포 가이드
+
+## 🆕 분리 배포 공식 워크플로우
+
+이 프로젝트는 **프론트엔드(Firebase Hosting)**와 **백엔드(Google Cloud Run)**를 완전히 분리하여 배포/운영합니다.
+
+### 분리 배포 스크립트
+- 프론트엔드만: `quick-deploy.sh`
+- 백엔드만: `deploy-backend.sh`
+- 전체: `deploy.sh`
+- 연결 확인: `check-connection.sh`
+
+### 권장 배포 시나리오
+- **UI/프론트엔드만 변경**: `quick-deploy.sh`
+- **API/백엔드만 변경**: `deploy-backend.sh`
+- **전체 변경/최초 배포**: `deploy.sh`
+- **배포 후 연결 확인**: `check-connection.sh`
+
+---
+
+# 이하 기존 가이드 유지
 
 ## 📋 프로젝트 개요
 
-**HyperAsset LLM 주식 분석 시스템**을 Firebase Hosting + AWS RDS로 배포하는 완전한 가이드입니다.
+**HyperAsset LLM 주식 분석 시스템**을 Firebase Hosting + Google Cloud Run으로 배포하는 완전한 가이드입니다.
 
 ### 🏗️ 아키텍처 구성
 ```
-Frontend (Firebase Hosting)
+Frontend (Firebase Hosting) - React + Vite + TypeScript
     ↓
-Backend (Cloud Run / VPS)
+Backend (Google Cloud Run) - Python FastAPI 마이크로서비스
     ↓
-Database (AWS RDS MySQL)
+Database (AWS RDS MySQL) - 기존 데이터베이스
     ↓
-Vector DB (ChromaDB + S3)
+Vector DB (ChromaDB) - 임시 스토리지
 ```
 
 ## 🎯 배포 전략
 
-### ✅ 완료된 구현
-- **Frontend**: React + Vite + TypeScript (포트 3000)
-- **Backend**: Python FastAPI 마이크로서비스 (포트 8005)
-- **Database**: AWS RDS MySQL (이미 구성됨)
-- **Services**: 8개 마이크로서비스 + 오케스트레이터
+### ✅ 현재 구현 상태
+- **Frontend**: React + Vite + TypeScript (포트 3000) ✅
+- **Backend**: Python FastAPI 마이크로서비스 (포트 8005) ✅
+- **Database**: AWS RDS MySQL (기존 구성) ✅
+- **Services**: 8개 마이크로서비스 + 오케스트레이터 ✅
 
 ### 🚀 배포 옵션
 
@@ -29,7 +49,7 @@ Vector DB (ChromaDB + S3)
 - Frontend: Firebase Hosting
 - Backend: Google Cloud Run
 - Database: AWS RDS (기존)
-- Vector DB: ChromaDB + Cloud Storage
+- Vector DB: ChromaDB + 임시 스토리지
 
 #### **Option 2: 하이브리드 배포**
 - Frontend: Firebase Hosting
@@ -154,79 +174,57 @@ firebase hosting:channel:list
 
 ### 3단계: Backend 배포 (Cloud Run)
 
-#### 3.1 Dockerfile 생성
+#### 3.1 Dockerfile 확인
 ```dockerfile
-# stock_analysis_service/Dockerfile
+# stock_analysis_service/deployment/Dockerfile
 FROM python:3.11-slim
 
 # 시스템 패키지 업데이트
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
+    curl \
+    wget \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # 작업 디렉토리 설정
 WORKDIR /app
 
+# Python 환경 설정
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV ENV=production
+
 # Python 의존성 설치
 COPY requirements_final.txt .
-RUN pip install --no-cache-dir -r requirements_final.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements_final.txt
 
 # 애플리케이션 코드 복사
 COPY . .
 
+# ChromaDB 데이터 디렉토리 생성
+RUN mkdir -p /tmp/chroma
+
 # 포트 노출
 EXPOSE 8005
 
-# 환경 변수 설정
-ENV PYTHONPATH=/app
-ENV ENV=production
+# 헬스체크 추가
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8005/health || exit 1
 
 # 애플리케이션 실행
-CMD ["uvicorn", "services.api_gateway.main:app", "--host", "0.0.0.0", "--port", "8005"]
+CMD ["uvicorn", "services.api_gateway.main:app", "--host", "0.0.0.0", "--port", "8005", "--workers", "1"]
 ```
 
-#### 3.2 .dockerignore 생성
-```dockerignore
-# stock_analysis_service/.dockerignore
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
-env
-pip-log.txt
-pip-delete-this-directory.txt
-.tox
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.git
-.mypy_cache
-.pytest_cache
-.hypothesis
-.DS_Store
-venv/
-.venv/
-.env
-*.log
-data/chroma/
-output/
-test/
-test_output/
-```
-
-#### 3.3 Cloud Run 배포
+#### 3.2 Cloud Run 배포
 ```bash
 # 프로젝트 설정
 gcloud config set project hyperasset-llm
 
 # Docker 이미지 빌드
-docker build -t gcr.io/hyperasset-llm/stock-analysis-api .
+docker build -t gcr.io/hyperasset-llm/stock-analysis-api -f deployment/Dockerfile .
 
 # Google Container Registry에 푸시
 docker tag gcr.io/hyperasset-llm/stock-analysis-api gcr.io/hyperasset-llm/stock-analysis-api:latest
@@ -264,18 +262,9 @@ gcloud run services update stock-analysis-api \
     TELEGRAM_CHAT_ID=-1002819230740
 ```
 
-#### 4.2 Firebase Functions 환경 변수 (선택사항)
-```bash
-firebase functions:config:set \
-  database.host="database-1.c7gaw6asmxbo.ap-northeast-2.rds.amazonaws.com" \
-  database.user="admin" \
-  database.password="Peter0524!" \
-  database.name="HyperAsset"
-```
-
 ### 5단계: ChromaDB 설정
 
-#### 5.1 ChromaDB 설정 파일 생성
+#### 5.1 ChromaDB 설정 파일 확인
 ```python
 # stock_analysis_service/config/chromadb_config.py
 import chromadb

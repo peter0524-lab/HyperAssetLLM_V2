@@ -104,81 +104,77 @@ class TelegramNotificationService:
             return False
 
     def send_custom_message(self, message: str, notification_type: str = "general") -> bool:
-        """사용자 정의 메시지 전송"""
+        """커스텀 메시지 전송"""
         try:
-            # 빗썸 스타일 포맷팅
             formatted_message = self._format_bithumb_style_message(message, notification_type)
-            
             success = self.telegram_bot.send_message(formatted_message)
             
             if success:
-                self.logger.info(f"사용자 정의 메시지 전송 완료: {notification_type}")
+                self.logger.info(f"커스텀 메시지 전송 완료: {notification_type}")
             else:
-                self.logger.error(f"사용자 정의 메시지 전송 실패: {notification_type}")
+                self.logger.error(f"커스텀 메시지 전송 실패: {notification_type}")
                 
             return success
             
         except Exception as e:
-            self.logger.error(f"사용자 정의 메시지 전송 중 오류: {e}")
+            self.logger.error(f"커스텀 메시지 전송 중 오류: {e}")
             return False
 
     def _format_bithumb_style_message(self, message: str, notification_type: str) -> str:
         """빗썸 스타일 메시지 포맷팅"""
-        timestamp = datetime.now().strftime("%H:%M")
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        # 알림 유형별 아이콘
+        # 알림 유형에 따른 아이콘 설정
         icons = {
             "news": "📰",
             "disclosure": "📢", 
             "chart": "📊",
             "price": "💰",
-            "weekly_report": "📈",
-            "error": "🚨",
-            "general": "🔔",
-            "welcome": "🎉",
-            "test": "🧪"
+            "alert": "🚨",
+            "info": "ℹ️",
+            "success": "✅",
+            "warning": "⚠️",
+            "error": "❌",
+            "general": "🔔"
         }
         
         icon = icons.get(notification_type, "🔔")
         
-        # 빗썸 스타일 포맷
-        formatted = f"""
-{icon} <b>HyperAsset 실시간 알림</b>
+        formatted_message = f"""
+{icon} <b>HyperAsset 알림</b>
 
 {message}
 
 ⏰ {timestamp}
 🔗 <a href="https://t.me/HyperAssetAlerts">채널 바로가기</a>
-
-💡 <i>이 분석은 참고용이며, 투자 결정은 신중하게 하시기 바랍니다.</i>
         """.strip()
         
-        return formatted
+        return formatted_message
 
     def health_check(self) -> Dict[str, Any]:
-        """서비스 상태 확인"""
+        """헬스체크"""
         try:
-            # 기존 텔레그램 봇 상태 확인
-            bot_health = self.telegram_bot.health_check()
+            # 봇 정보 확인
+            bot_info = self.telegram_bot.get_bot_info()
             
-            # 테스트 메시지 전송 시도
-            test_success = self.send_test_message()
-            
-            return {
-                "service": "telegram_notification_service",
-                "status": "healthy" if bot_health.get("status") == "healthy" else "unhealthy",
-                "bot_health": bot_health,
-                "test_message": "success" if test_success else "failed",
-                "timestamp": datetime.now().isoformat()
-            }
-            
+            if bot_info:
+                return {
+                    "status": "healthy",
+                    "bot_username": bot_info.get("username"),
+                    "bot_name": bot_info.get("first_name"),
+                    "can_join_groups": bot_info.get("can_join_groups", False),
+                    "can_read_all_group_messages": bot_info.get("can_read_all_group_messages", False)
+                }
+            else:
+                return {
+                    "status": "unhealthy",
+                    "error": "봇 정보를 가져올 수 없습니다."
+                }
+                
         except Exception as e:
-            self.logger.error(f"서비스 상태 확인 실패: {e}")
             return {
-                "service": "telegram_notification_service",
-                "status": "unhealthy",
-                "error": str(e),
-                "timestamp": datetime.now().isoformat()
+                "status": "unhealthy", 
+                "error": str(e)
             }
 
 

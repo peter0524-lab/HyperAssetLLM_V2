@@ -404,8 +404,8 @@ class FlowAnalysisService:
 
             self.logger.info(f"실시간 프로그램 트리거 저장: {stock_code}")
 
-            # 복합 트리거 체크
-            await self.check_composite_trigger(stock_code)
+            # 프로그램 매매 알림 전송
+            await self.send_program_alert(stock_code)
 
         except Exception as e:
             self.logger.error(f"프로그램 트리거 처리 실패: {e}")
@@ -439,12 +439,13 @@ class FlowAnalysisService:
 
             self.logger.info(f"일별 기관 트리거 저장: {stock_code}")
 
-            # 복합 트리거 체크
-            await self.check_composite_trigger(stock_code)
+            # 기관 매수 알림 전송
+            await self.send_institutional_alert(stock_code)
 
         except Exception as e:
             self.logger.error(f"기관 트리거 처리 실패: {e}")
 
+<<<<<<< Updated upstream
     async def check_composite_trigger(self, stock_code: str):
         """복합 트리거 체크 (기관 + 프로그램)"""
         try:
@@ -482,17 +483,20 @@ class FlowAnalysisService:
 
         except Exception as e:
             self.logger.error(f"복합 트리거 체크 실패: {e}")
+=======
+    # 복합 트리거 체크 함수 제거 (각각 독립적으로 알림 전송)
+>>>>>>> Stashed changes
 
     # === 과거 유사 사례 검색 (SQL Only) ===
 
     async def search_similar_cases(self, stock_code: str) -> Optional[Dict]:
-        """과거 유사 사례 검색 (가장 최근 이전 복합 신호)"""
+        """과거 유사 사례 검색 (가장 최근 이전 신호)"""
         try:
             query = """
                 WITH latest AS (
                     SELECT DATE(ref_time) as d
                     FROM pattern_signals
-                    WHERE ticker = %s AND composite_strong = TRUE
+                    WHERE ticker = %s AND (daily_inst_strong = TRUE OR rt_prog_strong = TRUE)
                     ORDER BY ref_time DESC
                     LIMIT 1
                 )
@@ -502,7 +506,7 @@ class FlowAnalysisService:
                 LEFT JOIN eod_flows ef ON ps.ticker = ef.ticker 
                     AND DATE(ps.ref_time) = ef.trade_date
                 WHERE ps.ticker = %s 
-                    AND ps.composite_strong = TRUE
+                    AND (ps.daily_inst_strong = TRUE OR ps.rt_prog_strong = TRUE)
                     AND DATE(ps.ref_time) < (SELECT d FROM latest)
                 ORDER BY ps.ref_time DESC
                 LIMIT 1
@@ -544,47 +548,7 @@ class FlowAnalysisService:
 
     # === 알림 시스템 ===
 
-    async def send_composite_alert(self, stock_code: str):
-        """복합 신호 알림 전송"""
-        try:
-            # 현재 신호 데이터 조회
-            query = """
-                SELECT ps.*, ef.close_price, ef.volume
-                FROM pattern_signals ps
-                LEFT JOIN eod_flows ef ON ps.ticker = ef.ticker 
-                    AND DATE(ps.ref_time) = ef.trade_date
-                WHERE ps.ticker = %s AND ps.composite_strong = TRUE
-                ORDER BY ps.ref_time DESC
-                LIMIT 1
-            """
-
-            with self.mysql_client.get_connection() as conn:
-                cursor = conn.cursor(pymysql.cursors.DictCursor)
-                cursor.execute(query, (stock_code,))
-                signal_data = cursor.fetchone()
-
-            if not signal_data:
-                return
-
-            # 유사 사례 검색
-            similar_case = await self.search_similar_cases(stock_code)
-
-            # 메시지 생성
-            message = self.build_composite_alert_message(signal_data, similar_case)
-
-            # 텔레그램 전송
-            await self.telegram_bot.send_message(message)
-            
-            # 최근 알람 메시지 저장
-            await save_latest_signal(message)
-
-            # 알림 로그 저장
-            await self.save_alert_log(stock_code, "COMPOSITE", message)
-
-            self.logger.info(f"복합 알림 전송 완료: {stock_code}")
-
-        except Exception as e:
-            self.logger.error(f"복합 알림 전송 실패: {e}")
+    # 복합 신호 알림 전송 함수 제거 (각각 독립적으로 알림 전송)
 
     async def send_institutional_alert(self, stock_code: str):
         """기관 매수 알림 전송 (3일 이상 순매수)"""
@@ -684,33 +648,7 @@ class FlowAnalysisService:
         except Exception as e:
             self.logger.error(f"프로그램 매매 알림 전송 실패: {e}")
 
-    def build_composite_alert_message(self, signal_data: Dict, similar_case: Dict = None) -> str:
-        """복합 신호 알림 메시지 구성"""
-        try:
-            ticker = signal_data["ticker"]
-            trigger_data = json.loads(signal_data.get("trigger_data", "{}"))
-            
-            prog_ratio = signal_data.get("prog_ratio", 0)
-            inst_buy_days = signal_data.get("inst_buy_days", 0)
-
-            message_lines = [
-                f"🏹 <b>{ticker} 복합 순매수 신호 발생</b>",
-                f"• 프로그램 순매수 급증 (30일평균 대비 {prog_ratio:.1f}배)",
-                f"• 기관 최근 5일 중 {inst_buy_days}일 순매수"
-            ]
-
-            if similar_case:
-                ret5d_pct = similar_case["ret5d"] * 100
-                message_lines.append(
-                    f"• 과거 유사사례: {similar_case['ref_time']:%Y-%m-%d} "
-                    f"(+5일 수익률 {ret5d_pct:+.2f}%)"
-                )
-
-            return "\n".join(message_lines)
-
-        except Exception as e:
-            self.logger.error(f"복합 신호 메시지 구성 실패: {e}")
-            return f"🏹 {signal_data.get('ticker', 'Unknown')} 복합 신호 발생"
+    # 복합 신호 메시지 구성 함수 제거 (각각 독립적으로 메시지 구성)
 
     def build_institutional_alert_message(self, stock_code: str, result: Dict) -> str:
         """기관 매수 알림 메시지 구성"""
@@ -759,7 +697,7 @@ class FlowAnalysisService:
 
     def build_alert_message(self, signal_data: Dict, similar_case: Dict = None) -> str:
         """기존 알림 메시지 구성 (하위 호환성)"""
-        return self.build_composite_alert_message(signal_data, similar_case)
+        return f"🏹 {signal_data.get('ticker', 'Unknown')} 신호 발생"
 
     async def save_alert_log(self, stock_code: str, alert_type: str, message: str):
         """알림 로그 저장"""

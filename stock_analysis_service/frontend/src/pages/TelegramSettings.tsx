@@ -16,7 +16,11 @@ import {
   TrendingUp,
   AlertTriangle,
   Search,
-  X
+  X,
+  CheckCircle,
+  XCircle,
+  Info,
+  Bug
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, userStorage, telegramChannelApi, StockInfo } from "@/lib/api";
@@ -31,6 +35,14 @@ interface TelegramChannel {
   is_active: boolean;
 }
 
+interface DebugInfo {
+  userId: string;
+  channelInfo: any;
+  lastTestResult: any;
+  lastWelcomeResult: any;
+  errorLog: string[];
+}
+
 const TelegramSettings = () => {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string>('');
@@ -42,6 +54,16 @@ const TelegramSettings = () => {
     channel_description: '빗썸 스타일 실시간 주식 알림 채널입니다. 뉴스, 공시, 차트 패턴 등 중요한 정보를 실시간으로 받아보세요!',
     is_active: true
   });
+
+  // 디버깅 상태
+  const [debugInfo, setDebugInfo] = useState<DebugInfo>({
+    userId: '',
+    channelInfo: null,
+    lastTestResult: null,
+    lastWelcomeResult: null,
+    errorLog: []
+  });
+  const [showDebug, setShowDebug] = useState(false);
 
   // 종목 관련 상태
   const [searchQuery, setSearchQuery] = useState("");
@@ -55,20 +77,35 @@ const TelegramSettings = () => {
       return;
     }
     setUserId(currentUserId);
+    setDebugInfo(prev => ({ ...prev, userId: currentUserId }));
     
     // 기존 종목 불러오기
     api.getUserConfig(currentUserId).then(cfg => {
       if (cfg && cfg.stocks) {
         setSelectedStocks(cfg.stocks);
       }
+    }).catch(error => {
+      console.error('사용자 설정 로드 실패:', error);
+      addDebugLog(`사용자 설정 로드 실패: ${error.message}`);
     });
   }, [navigate]);
+
+  // 디버그 로그 추가 함수
+  const addDebugLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = `[${timestamp}] ${message}`;
+    setDebugInfo(prev => ({
+      ...prev,
+      errorLog: [...prev.errorLog, logEntry].slice(-10) // 최근 10개만 유지
+    }));
+  };
 
   // 텔레그램 채널 정보 조회
   const { data: channelData, isLoading: isLoadingChannel, error: channelError } = useQuery({
     queryKey: ['telegramChannel', userId],
     queryFn: async () => {
       if (!userId) {
+        addDebugLog('사용자 ID가 없어 기본 채널 정보를 반환합니다.');
         return {
           channel_id: 1,
           channel_name: 'HyperAsset 주식 알림',
@@ -80,10 +117,15 @@ const TelegramSettings = () => {
       }
       
       try {
+        addDebugLog(`채널 정보 조회 시작: ${userId}`);
         const response = await telegramChannelApi.getChannelInfo(userId);
+        addDebugLog(`채널 정보 조회 성공: ${JSON.stringify(response.data)}`);
+        setDebugInfo(prev => ({ ...prev, channelInfo: response.data }));
         return response.data;
-      } catch (error) {
-        console.error('텔레그램 채널 조회 실패:', error);
+      } catch (error: any) {
+        const errorMsg = `텔레그램 채널 조회 실패: ${error.message || error}`;
+        console.error(errorMsg);
+        addDebugLog(errorMsg);
         return {
           channel_id: 1,
           channel_name: 'HyperAsset 주식 알림',
@@ -99,27 +141,47 @@ const TelegramSettings = () => {
 
   // 환영 메시지 전송 mutation
   const sendWelcomeMutation = useMutation({
-    mutationFn: () => telegramChannelApi.sendSimpleWelcomeMessage(userId),
-    onSuccess: (data) => {
-      toast.success('�� 환영 메시지가 텔레그램 채널에 전송되었습니다!');
-      console.log('환영 메시지 전송 성공:', data);
+    mutationFn: async () => {
+      addDebugLog('환영 메시지 전송 시작');
+      const result = await telegramChannelApi.sendSimpleWelcomeMessage(userId);
+      addDebugLog(`환영 메시지 전송 결과: ${JSON.stringify(result)}`);
+      return result;
     },
-    onError: (error) => {
+    onSuccess: (data) => {
+      toast.success('🎉 환영 메시지가 텔레그램 채널에 전송되었습니다!');
+      console.log('환영 메시지 전송 성공:', data);
+      setDebugInfo(prev => ({ ...prev, lastWelcomeResult: data }));
+      addDebugLog('환영 메시지 전송 성공');
+    },
+    onError: (error: any) => {
+      const errorMsg = `환영 메시지 전송 실패: ${error.message || error}`;
       toast.error('❌ 환영 메시지 전송에 실패했습니다.');
-      console.error('환영 메시지 전송 실패:', error);
+      console.error(errorMsg);
+      addDebugLog(errorMsg);
+      setDebugInfo(prev => ({ ...prev, lastWelcomeResult: { error: errorMsg } }));
     }
   });
 
   // 테스트 알림 전송 mutation
   const sendTestNotificationMutation = useMutation({
-    mutationFn: () => telegramChannelApi.sendSimpleTestMessage(userId),
+    mutationFn: async () => {
+      addDebugLog('테스트 알림 전송 시작');
+      const result = await telegramChannelApi.sendSimpleTestMessage(userId);
+      addDebugLog(`테스트 알림 전송 결과: ${JSON.stringify(result)}`);
+      return result;
+    },
     onSuccess: (data) => {
       toast.success('📤 테스트 알림이 전송되었습니다!');
       console.log('테스트 알림 전송 성공:', data);
+      setDebugInfo(prev => ({ ...prev, lastTestResult: data }));
+      addDebugLog('테스트 알림 전송 성공');
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      const errorMsg = `테스트 알림 전송 실패: ${error.message || error}`;
       toast.error('❌ 테스트 알림 전송에 실패했습니다.');
-      console.error('테스트 알림 전송 실패:', error);
+      console.error(errorMsg);
+      addDebugLog(errorMsg);
+      setDebugInfo(prev => ({ ...prev, lastTestResult: { error: errorMsg } }));
     }
   });
 
@@ -136,8 +198,10 @@ const TelegramSettings = () => {
       window.open(channelData.channel_url, '_blank');
       sendWelcomeMutation.mutate();
       toast.success('📱 텔레그램 채널로 이동합니다!');
+      addDebugLog('채널 이동 및 환영 메시지 전송 시작');
     } else {
       toast.error('❌ 채널 정보를 찾을 수 없습니다.');
+      addDebugLog('채널 정보를 찾을 수 없음');
     }
   };
 
@@ -145,6 +209,7 @@ const TelegramSettings = () => {
   const handleSendTestNotification = () => {
     if (!userId) {
       toast.error('사용자 ID를 찾을 수 없습니다.');
+      addDebugLog('사용자 ID를 찾을 수 없음');
       return;
     }
     sendTestNotificationMutation.mutate();
@@ -169,12 +234,14 @@ const TelegramSettings = () => {
     }]);
     setSearchQuery("");
     toast.success(`${stock.company_name}이(가) 추가되었습니다.`);
+    addDebugLog(`종목 추가: ${stock.company_name} (${stock.stock_code})`);
   };
 
   // 종목 제거
   const removeStock = (stockCode: string) => {
     setSelectedStocks(prev => prev.filter(stock => stock.code !== stockCode));
     toast.success("종목이 제거되었습니다.");
+    addDebugLog(`종목 제거: ${stockCode}`);
   };
 
   // 로딩 상태 확인
@@ -215,6 +282,80 @@ const TelegramSettings = () => {
               <ArrowLeft className="h-4 w-4 mr-2" />
               대시보드로 돌아가기
             </Button>
+
+            {/* 디버그 토글 버튼 */}
+            <div className="flex justify-between items-center">
+              <div></div>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowDebug(!showDebug)}
+                className="flex items-center gap-2"
+              >
+                <Bug className="h-4 w-4" />
+                {showDebug ? '디버그 숨기기' : '디버그 보기'}
+              </Button>
+            </div>
+
+            {/* 디버그 정보 */}
+            {showDebug && (
+              <Card className="border-orange-200 bg-orange-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-orange-800">
+                    <Bug className="h-5 w-5" />
+                    디버그 정보
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">사용자 ID</Label>
+                      <p className="text-sm text-gray-600">{debugInfo.userId || '없음'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">채널 정보</Label>
+                      <p className="text-sm text-gray-600">
+                        {debugInfo.channelInfo ? '로드됨' : '없음'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-sm font-medium">최근 테스트 결과</Label>
+                    <div className="text-sm text-gray-600 bg-white p-2 rounded border">
+                      {debugInfo.lastTestResult ? (
+                        <pre className="text-xs overflow-auto">
+                          {JSON.stringify(debugInfo.lastTestResult, null, 2)}
+                        </pre>
+                      ) : '없음'}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-sm font-medium">최근 환영 메시지 결과</Label>
+                    <div className="text-sm text-gray-600 bg-white p-2 rounded border">
+                      {debugInfo.lastWelcomeResult ? (
+                        <pre className="text-xs overflow-auto">
+                          {JSON.stringify(debugInfo.lastWelcomeResult, null, 2)}
+                        </pre>
+                      ) : '없음'}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-sm font-medium">에러 로그 (최근 10개)</Label>
+                    <div className="text-sm text-gray-600 bg-white p-2 rounded border max-h-40 overflow-y-auto">
+                      {debugInfo.errorLog.length > 0 ? (
+                        debugInfo.errorLog.map((log, index) => (
+                          <div key={index} className="text-xs text-red-600 mb-1">
+                            {log}
+                          </div>
+                        ))
+                      ) : '에러 로그 없음'}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* 로딩 상태 */}
             {isDataLoading && (
@@ -320,7 +461,7 @@ const TelegramSettings = () => {
                   봇이 텔레그램 채널에 메시지를 제대로 보낼 수 있는지 확인합니다
                 </AlertDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <Button 
                   onClick={handleSendTestNotification}
                   disabled={sendTestNotificationMutation.isPending}
@@ -337,6 +478,70 @@ const TelegramSettings = () => {
                     </>
                   )}
                 </Button>
+                
+                {/* 테스트 결과 표시 */}
+                {debugInfo.lastTestResult && (
+                  <Alert variant={debugInfo.lastTestResult.error ? "destructive" : "default"}>
+                    {debugInfo.lastTestResult.error ? (
+                      <XCircle className="h-4 w-4" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4" />
+                    )}
+                    <AlertDescription>
+                      {debugInfo.lastTestResult.error 
+                        ? `테스트 실패: ${debugInfo.lastTestResult.error}`
+                        : '테스트 알림이 성공적으로 전송되었습니다.'
+                      }
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* 환영 메시지 테스트 */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  👋 환영 메시지 테스트
+                </CardTitle>
+                <AlertDescription>
+                  사용자 환영 메시지가 제대로 전송되는지 확인합니다
+                </AlertDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button 
+                  onClick={() => sendWelcomeMutation.mutate()}
+                  disabled={sendWelcomeMutation.isPending}
+                  className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                >
+                  {sendWelcomeMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      전송 중...
+                    </>
+                  ) : (
+                    <>
+                      👋 환영 메시지 전송
+                    </>
+                  )}
+                </Button>
+                
+                {/* 환영 메시지 결과 표시 */}
+                {debugInfo.lastWelcomeResult && (
+                  <Alert variant={debugInfo.lastWelcomeResult.error ? "destructive" : "default"}>
+                    {debugInfo.lastWelcomeResult.error ? (
+                      <XCircle className="h-4 w-4" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4" />
+                    )}
+                    <AlertDescription>
+                      {debugInfo.lastWelcomeResult.error 
+                        ? `환영 메시지 실패: ${debugInfo.lastWelcomeResult.error}`
+                        : '환영 메시지가 성공적으로 전송되었습니다.'
+                      }
+                    </AlertDescription>
+                  </Alert>
+                )}
               </CardContent>
             </Card>
           </div>
