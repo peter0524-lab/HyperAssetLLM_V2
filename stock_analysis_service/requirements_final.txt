@@ -165,4 +165,5 @@ tqdm==4.67.1
 packaging==25.0
 filelock==3.18.0
 huggingface-hub==0.34.1
-safetensors==0.5.3 
+safetensors==0.5.3
+unstructured[local-inference,pdf]

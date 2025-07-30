@@ -12,6 +12,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from urllib.parse import unquote, urlparse, parse_qs
 from webdriver_manager.chrome import ChromeDriverManager
+from unstructured.partition.pdf import partition_pdf
 
 # from unstructured.partition.pdf import partition_pdf  # 임시 주석처리
 import logging
@@ -55,18 +56,18 @@ class ResearchCrawler:
                     logger.info(f"📄 PDF 바이트 크기: {len(pdf_content)} bytes")
 
             # 임시로 PDF 파싱 기능 비활성화
-            # elements = await asyncio.to_thread(
-            #     partition_pdf,
-            #     file=pdf_file,
-            #     filename=None,
-            #     languages=["ko"],
-            #     strategy="fast",
-            #     detect_languages=False,
-            #     extract_images_in_pdf=False,
-            #     include_page_breaks=True,
-            #     hi_nr_of_pages=1
-            # )
-            elements = []  # 임시로 빈 리스트 반환
+            elements = await asyncio.to_thread(
+                partition_pdf,
+                file=pdf_file,
+                filename=None,
+                languages=["ko"],
+                strategy="fast",
+                detect_languages=False,
+                extract_images_in_pdf=False,
+                include_page_breaks=True,
+                hi_nr_of_pages=1
+            )
+            
 
             extracted_text_elements = []
             korean_pattern = re.compile('[가-힣]+')

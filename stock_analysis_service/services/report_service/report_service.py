@@ -48,20 +48,12 @@ from shared.apis.telegram_api import TelegramBotClient
 from config.env_local import get_config
 from shared.user_config.user_config_manager import user_config_manager
 from shared.service_config.user_config_loader import get_config_loader
-from fastapi.middleware.cors import CORSMiddleware
+
 # FastAPI 추가
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 import uvicorn
 
 app = FastAPI(title="Weekly Report Service", version="1.0.0")
-# CORS 설정
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 class ReportService:
     """주간 보고서 서비스 클래스"""
@@ -81,7 +73,6 @@ class ReportService:
         
         self.mysql_client = get_mysql_client()
         # ChromaDB 대시보드와 동일한 경로를 사용하도록 환경 변수 설정
-        
         news_service_chroma_path = os.path.join(project_root, "services", "news_service", "data", "chroma")
         os.environ["CHROMADB_PERSIST_DIRECTORY"] = news_service_chroma_path
         self.vector_db = VectorDBClient()
@@ -90,14 +81,12 @@ class ReportService:
         self.research_crawler = ResearchCrawler()
 
         # 로깅 설정
-        
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
         self.logger = logging.getLogger(__name__)
         
-  
         # 사용자별 설정 로드 (MySQL에서 stock_code만 덮어쓰기)
         asyncio.create_task(self._load_user_settings())
         
@@ -293,6 +282,10 @@ class ReportService:
                     formatted_text.append(f"- 날짜: {chart_entry['date']}, 종가: {chart_entry['close_price']}, 거래량: {chart_entry['volume']}")
         return "\n".join(formatted_text)
 
+
+
+
+
     def _generate_pdf_report(self, report_text: str, stock_code: str) -> BytesIO:
         """리포트 텍스트를 PDF로 메모리에 생성"""
         try:
@@ -300,6 +293,7 @@ class ReportService:
             c = canvas.Canvas(buffer, pagesize=letter)
 
             try:
+                # static/fonts/NanumGothic.ttf 경로에서 폰트 로드
                 font_path = Path(__file__).parent.parent.parent / "static" / "fonts" / "NanumGothic.ttf"
                 if not font_path.exists():
                     raise FileNotFoundError(f"폰트 파일을 찾을 수 없습니다: {font_path}")
@@ -314,38 +308,18 @@ class ReportService:
             textobject.setLeading(14)
 
             wrapped_lines = []
+            for line in report_text.split('\n'):
+                # 긴 줄은 잘라서 wrap
 
-            # 🔥 '#'로 시작하는 문단을 기준으로 분할, 줄바꿈 없이 이어졌을 때도 처리됨
-            paragraphs = re.split(r'(?=#)', report_text)
+                # ✅ 문단 구분용: # 로 시작하면 빈 줄 추가
+                if line.startswith("#"):
+                    wrapped_lines.append("")  # 문단 간 빈 줄
+                    line = "• " + line.lstrip("#").strip()  # 보기 좋게 마크 달기 (★, • 등 취향)
+                wrapped = wrap(line, width=50)  # width는 글자 수 기준
+                wrapped_lines.extend(wrapped if wrapped else [""])  # 빈 줄도 유지
 
-            for paragraph in paragraphs:
-                paragraph = paragraph.strip()
-                if not paragraph:
-                    continue
-
-                if paragraph.startswith("#"):
-                    # '#' 문단 제목과 본문이 한 줄에 붙어 있는 경우 분리 (예: "#제목 - 내용")
-                    parts = paragraph.split("-", 1)
-                    title = parts[0].strip()
-                    body = parts[1].strip() if len(parts) > 1 else ""
-
-                    # 문단 제목
-                    wrapped_lines.append("")
-                    wrapped_lines.append("• " + title.lstrip("#").strip())
-
-                    # 본문
-                    wrapped = wrap(body, width=50)
-                    wrapped_lines.extend(wrapped if wrapped else [""])
-
-                else:
-                    # 그냥 일반 문단
-                    wrapped = wrap(paragraph, width=50)
-                    wrapped_lines.extend(wrapped if wrapped else [""])
-
-            # PDF에 줄별로 작성
             for line in wrapped_lines:
                 textobject.textLine(line)
-
             c.drawText(textobject)
             c.save()
             buffer.seek(0)
@@ -354,8 +328,6 @@ class ReportService:
         except Exception as e:
             self.logger.error(f"PDF 생성 실패: {e}")
             return BytesIO()
-
-   
     async def send_weekly_report_telegram(self, stock_code: str, pdf_buffer: BytesIO, keywords: List[str]):
         """PDF BytesIO 객체를 텔레그램으로 전송"""
         try:
@@ -462,10 +434,69 @@ class ReportService:
         except Exception as e:
             self.logger.error(f"벡터 DB에 키워드 저장 실패: {e}")
 
+    def _parse_llm_response(self, response_text: str) -> Dict[str, Any]:
+        """LLM 응답 텍스트를 파싱하여 JSON 객체로 변환합니다. 일반적인 오류에 대해 자동 수정을 시도하고, 부분적인 키 매칭을 지원합니다."""
+        
+        def get_partial_key_value(d: dict, keyword: str):
+            """사전에서 키워드를 포함하는 키의 값을 찾습니다."""
+            for k, v in d.items():
+                if keyword in k:
+                    return v
+            return None
+
+        if not response_text:
+            self.logger.error("LLM 응답이 비어있습니다.")
+            return {"report": "LLM 응답 없음", "keywords": []}
+
+        try:
+            # 불필요한 제어 문자 제거
+            cleaned_text = re.sub(r'[\x00-\x1F\x7F]', '', response_text.strip())
+            
+            # JSON 객체만 추출 (예: ```json ... ``` 패턴)
+            match = re.search(r'```json\n(.*?)```', cleaned_text, re.DOTALL)
+            if match:
+                json_str = match.group(1)
+            else:
+                # 기존 로직에서 순수 JSON 객체 추출 로직이 있었으므로 유지
+                match = re.search(r'\{.*\}', cleaned_text, re.DOTALL)
+                if match:
+                    json_str = match.group(0)
+                else:
+                    json_str = cleaned_text # 마크다운 블록이나 순수 JSON이 아니면 전체 텍스트 사용
+
+            parsed_json = json.loads(json_str)
+            
+        except json.JSONDecodeError as e:
+            self.logger.warning(f"JSON 파싱 1차 실패: {e}. 자동 수정을 시도합니다.")
+            # 자동 수정: 누락된 쉼표 추가 ( "key": "value" "key2": ... -> "key": "value", "key2": ... )
+            # 이스케이프된 따옴표가 아닌 따옴표 뒤에 다른 따옴표가 오는 경우, 그 사이에 쉼표를 추가합니다.
+            fixed_text = re.sub(r'(?<!\\)"\s*\n*\s*(?<!\\)"', r'",\n"', cleaned_text)
+            
+            try:
+                # 2차 파싱 시도
+                parsed_json = json.loads(fixed_text)
+                self.logger.info("✅ JSON 자동 수정 및 파싱 성공")
+            except json.JSONDecodeError as e2:
+                self.logger.error(f"❌ JSON 자동 수정 후에도 파싱 실패: {e2}")
+                self.logger.error(f"원본 응답: {response_text}")
+                return {"report": f"LLM 응답 파싱 최종 실패: {e2}", "keywords": []}
+        except Exception as e:
+            self.logger.error(f"LLM 응답 처리 중 알 수 없는 오류: {e}")
+            return {"report": f"LLM 응답 처리 오류: {e}", "keywords": []}
+
+        # 부분 키 매칭을 사용하여 값 추출
+        report = get_partial_key_value(parsed_json, "report")
+        keywords = get_partial_key_value(parsed_json, "keyword")
+
+        return {
+            "report": report if report is not None else "리포트 내용 없음",
+            "keywords": keywords if keywords is not None else []
+        }
+
     async def process_weekly_report(self, stock_code: str):
         """주간 보고서 처리"""
         
-        
+
         try:
             self.logger.info(f"주간 보고서 처리 시작: {stock_code}")
 
@@ -486,12 +517,12 @@ class ReportService:
             보고서에는 다음 내용을 포함해야 합니다:
             
             📌 다음 항목을 순서대로 포함하시오. **각 항목은 반드시 새로운 줄에 시작하며, 문단 시작을 '#(반드시 # 하나)'로 표시**하시오:
-            #시장 전반에 대한 요약 및 주요 이슈
-            #특정 종목에 대한 분석 (긍정적/부정적 요인, 투자 의견 등)
-            #주요 뉴스 및 공시 내용 요약 (날짜별 구분)
-            #차트 데이터 분석 (가격 변동, 거래량 추이 등)
-            #향후 전망 및 투자 전략 제안
-            #보고서의 핵심 키워드 (문단 맨 마지막에 표시)
+            #시장 전반에 대한 요약 및 주요 이슈:
+            #특정 종목에 대한 분석 (긍정적/부정적 요인, 투자 의견 등):
+            #주요 뉴스 및 공시 내용 요약 (날짜별 구분):
+            #차트 데이터 분석 (가격 변동, 거래량 추이 등):
+            #향후 전망 및 투자 전략 제안:
+            #보고서의 핵심 키워드 (문단 맨 마지막에 표시):
 
             ---
             최신 리서치 보고서:
@@ -509,27 +540,12 @@ class ReportService:
             }}
             """
             
-            try:
-                comprehensive_report_data = await self.llm_manager.generate_response(self.current_user_id, prompt)
-            except:
-                # 파싱 실패 시 기본값
-                comprehensive_report_data = {
-                    "report": "주간 보고서 생성 실패",
-                    "keywords": ["보고서", "생성", "실패"]
-                }
             
+            report_response = await self.llm_manager.generate_response(self.current_user_id, prompt)
+  
             # 응답 파싱
-            """
-            try:
-                import json
-                comprehensive_report_data = json.loads(report_response)
-            except:
-                # 파싱 실패 시 기본값
-                comprehensive_report_data = {
-                    "report": "주간 보고서 생성 실패",
-                    "keywords": ["보고서", "생성", "실패"]
-                }
-            """
+            comprehensive_report_data = self._parse_llm_response(report_response)
+            
             
             
             # 4. 보고서 text만 텔레그램으로 전송 (pdf 형식으로)
@@ -548,10 +564,10 @@ class ReportService:
             )
             self.logger.info(f"주간 보고서 처리 완료: {stock_code}")
 
+
         except Exception as e:
             self.logger.error(f"주간 보고서 처리 실패: {e}")
 
-    
 
     async def run_service(self):
         """주간 보고서 서비스 실행"""
@@ -805,7 +821,6 @@ async def execute_weekly_report() -> Dict:
 async def execute_report_generation(request: Request):
     """리포트 생성 실행 - 사용자별 동적 처리"""
     try:
-        
         # Header에서 user_id 추출 (문자열로 처리)
         user_id = request.headers.get("X-User-ID", "1")
         
@@ -814,7 +829,6 @@ async def execute_report_generation(request: Request):
         if service.current_user_id != user_id:
             await service.set_user_id(user_id)
             logging.info(f"🔄 사용자 컨텍스트 변경: {user_id}")
-        
         
         # 주간 보고서 생성 실행
         result = await execute_weekly_report()
