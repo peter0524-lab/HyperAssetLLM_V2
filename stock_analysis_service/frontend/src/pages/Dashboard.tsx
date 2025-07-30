@@ -26,7 +26,6 @@ import Footer from "@/components/Footer";
 import { api, userStorage, UserConfig } from "@/lib/api";
 import TradingViewChart from "@/components/TradingViewChart";
 import ServiceMonitor from "@/components/ServiceMonitor";
-
 const Dashboard = () => {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string>('');
@@ -36,6 +35,16 @@ const Dashboard = () => {
     sector?: string;
   } | null>(null);
   const [viewMode, setViewMode] = useState<'dashboard' | 'monitor'>('dashboard');
+  
+  // 분석 결과 관리를 위한 상태
+  const [analysisResults, setAnalysisResults] = useState<any>({
+    news: [],
+    chart: [],
+    disclosure: [],
+    flow: [],
+    report: []
+  });
+  const [selectedAnalysisTab, setSelectedAnalysisTab] = useState<'news' | 'chart' | 'disclosure' | 'flow' | 'report'>('news');
 
   useEffect(() => {
     // 사용자 ID 확인
@@ -78,11 +87,80 @@ const Dashboard = () => {
   });
 
   // 개별 분석 실행
-  const executeNewsMutation = useMutation({ mutationFn: api.executeNewsAnalysis });
-  const executeDisclosureMutation = useMutation({ mutationFn: api.executeDisclosureAnalysis });
-  const executeChartMutation = useMutation({ mutationFn: api.executeChartAnalysis });
-  const executeReportMutation = useMutation({ mutationFn: api.executeReportAnalysis });
-  const executeFlowMutation = useMutation({ mutationFn: api.executeFlowAnalysis });
+  const executeNewsMutation = useMutation({ 
+    mutationFn: api.executeNewsAnalysis,
+    onSuccess: (data) => {
+      setAnalysisResults(prev => ({
+        ...prev,
+        news: data.data || []
+      }));
+      setSelectedAnalysisTab('news');
+      toast.success("📰 뉴스 분석이 완료되었습니다!");
+    },
+    onError: (error) => {
+      toast.error("❌ 뉴스 분석 실행 중 오류가 발생했습니다.");
+    }
+  });
+  
+  const executeDisclosureMutation = useMutation({ 
+    mutationFn: api.executeDisclosureAnalysis,
+    onSuccess: (data) => {
+      setAnalysisResults(prev => ({
+        ...prev,
+        disclosure: data.data || []
+      }));
+      setSelectedAnalysisTab('disclosure');
+      toast.success("📋 공시 분석이 완료되었습니다!");
+    },
+    onError: (error) => {
+      toast.error("❌ 공시 분석 실행 중 오류가 발생했습니다.");
+    }
+  });
+  
+  const executeChartMutation = useMutation({ 
+    mutationFn: api.executeChartAnalysis,
+    onSuccess: (data) => {
+      setAnalysisResults(prev => ({
+        ...prev,
+        chart: data.data || []
+      }));
+      setSelectedAnalysisTab('chart');
+      toast.success("📈 차트 분석이 완료되었습니다!");
+    },
+    onError: (error) => {
+      toast.error("❌ 차트 분석 실행 중 오류가 발생했습니다.");
+    }
+  });
+  
+  const executeReportMutation = useMutation({ 
+    mutationFn: api.executeReportAnalysis,
+    onSuccess: (data) => {
+      setAnalysisResults(prev => ({
+        ...prev,
+        report: data.data || []
+      }));
+      setSelectedAnalysisTab('report');
+      toast.success("📊 리포트 분석이 완료되었습니다!");
+    },
+    onError: (error) => {
+      toast.error("❌ 리포트 분석 실행 중 오류가 발생했습니다.");
+    }
+  });
+  
+  const executeFlowMutation = useMutation({ 
+    mutationFn: api.executeFlowAnalysis,
+    onSuccess: (data) => {
+      setAnalysisResults(prev => ({
+        ...prev,
+        flow: data.data || []
+      }));
+      setSelectedAnalysisTab('flow');
+      toast.success("💰 수급 분석이 완료되었습니다!");
+    },
+    onError: (error) => {
+      toast.error("❌ 수급 분석 실행 중 오류가 발생했습니다.");
+    }
+  });
 
   if (isLoadingConfig || isLoadingServices) {
     return (
@@ -236,7 +314,7 @@ const Dashboard = () => {
             <div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* 왼쪽 컬럼: 빠른 실행 & 포트폴리오 */}
+            {/* 왼쪽 컬럼: 빠른 실행 & 실시간 차트 */}
             <div className="lg:col-span-1 space-y-6">
               
               {/* 빠른 분석 실행 */}
@@ -267,99 +345,62 @@ const Dashboard = () => {
                     )}
                   </Button>
                   
-                  {/* 🔥 활성화된 서비스만 버튼 표시 */}
+                  {/* 🔥 분석 실행 버튼들 */}
                   <div className="grid grid-cols-2 gap-2">
-                    {userWantedServices?.success && userWantedServices?.data && (
-                      <>
-                        {userWantedServices.data.news_service && (
                     <Button 
                       variant="outline" 
                       size="sm"
                       onClick={() => executeNewsMutation.mutate()}
                       disabled={executeNewsMutation.isPending}
-                            className="flex flex-col items-center py-3 h-auto"
+                      className="flex flex-col items-center py-3 h-auto"
                     >
-                            <span className="text-lg mb-1">📰</span>
-                            <span className="text-xs">뉴스 즉시 실행해보기</span>
+                      <span className="text-lg mb-1">📰</span>
+                      <span className="text-xs">뉴스 즉시 실행해보기</span>
                     </Button>
-                        )}
-                        
-                        {userWantedServices.data.chart_service && (
+                    
                     <Button 
                       variant="outline" 
                       size="sm"
                       onClick={() => executeChartMutation.mutate()}
                       disabled={executeChartMutation.isPending}
-                            className="flex flex-col items-center py-3 h-auto"
+                      className="flex flex-col items-center py-3 h-auto"
                     >
-                            <span className="text-lg mb-1">📈</span>
-                            <span className="text-xs">차트 즉시 실행해보기</span>
+                      <span className="text-lg mb-1">📈</span>
+                      <span className="text-xs">차트 즉시 실행해보기</span>
                     </Button>
-                        )}
-                        
-                        {userWantedServices.data.disclosure_service && (
+                    
                     <Button 
                       variant="outline" 
                       size="sm"
                       onClick={() => executeDisclosureMutation.mutate()}
                       disabled={executeDisclosureMutation.isPending}
-                            className="flex flex-col items-center py-3 h-auto"
+                      className="flex flex-col items-center py-3 h-auto"
                     >
-                            <span className="text-lg mb-1">📋</span>
-                            <span className="text-xs">공시 즉시 실행해보기</span>
+                      <span className="text-lg mb-1">📋</span>
+                      <span className="text-xs">공시 즉시 실행해보기</span>
                     </Button>
-                        )}
-                        
-                        {userWantedServices.data.flow_service && (
+                    
                     <Button 
                       variant="outline" 
                       size="sm"
                       onClick={() => executeFlowMutation.mutate()}
                       disabled={executeFlowMutation.isPending}
-                            className="flex flex-col items-center py-3 h-auto"
-                          >
-                            <span className="text-lg mb-1">💰</span>
-                            <span className="text-xs">수급 즉시 실행해보기</span>
-                          </Button>
-                        )}
-                        
-                        {userWantedServices.data.report_service && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => executeReportMutation.mutate()}
-                            disabled={executeReportMutation.isPending}
-                            className="flex flex-col items-center py-3 h-auto"
-                          >
-                            <span className="text-lg mb-1">📊</span>
-                            <span className="text-xs">리포트 즉시 실행해보기</span>
-                          </Button>
-                        )}
-                      </>
-                    )}
-                    
-                    {/* 로딩 중이거나 활성화된 서비스가 없을 때 */}
-                    {(isLoadingServices || !userWantedServices?.success || !userWantedServices?.data) && (
-                      <div className="col-span-2 text-center py-4 text-gray-500">
-                        {isLoadingServices ? (
-                          <div className="flex items-center justify-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>서비스 설정을 불러오는 중...</span>
-                          </div>
-                        ) : (
-                          <div>
-                            <p className="mb-2">활성화된 서비스가 없습니다.</p>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => navigate('/profile')}
-                            >
-                              서비스 설정하기
+                      className="flex flex-col items-center py-3 h-auto"
+                    >
+                      <span className="text-lg mb-1">💰</span>
+                      <span className="text-xs">수급 즉시 실행해보기</span>
                     </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => executeReportMutation.mutate()}
+                      disabled={executeReportMutation.isPending}
+                      className="flex flex-col items-center py-3 h-auto"
+                    >
+                      <span className="text-lg mb-1">📊</span>
+                      <span className="text-xs">리포트 즉시 실행해보기</span>
+                    </Button>
                   </div>
 
                   <Button 
@@ -373,73 +414,41 @@ const Dashboard = () => {
                 </CardContent>
               </Card>
 
-              {/* 관심 종목 */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5 text-primary" />
-                      관심 종목
-                    </span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => navigate('/stocks')}
-                    >
-                      관리
-                    </Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {userConfig?.stocks?.length > 0 ? (
-                    <div className="space-y-3">
-                      {userConfig.stocks.slice(0, 5).map((stock) => (
-                        <div key={stock.code} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                          <div>
-                            <p className="font-medium">{stock.name}</p>
-                            <p className="text-sm text-gray-600">{stock.code}</p>
-                            {stock.sector && (
-                              <p className="text-xs text-gray-500">{stock.sector}</p>
-                            )}
-                          </div>
-                          <Badge variant="default">
-                            활성
-                          </Badge>
-                        </div>
-                      ))}
-                      {userConfig.stocks.length > 5 && (
-                        <p className="text-sm text-gray-500 text-center">
-                          +{userConfig.stocks.length - 5}개 더
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <TrendingUp className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600 mb-4">등록된 관심 종목이 없습니다</p>
-                      <Button onClick={() => navigate('/stocks')}>
-                        종목 추가하기
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* 오른쪽 컬럼: 실시간 차트 */}
-            <div className="lg:col-span-2">
-              <Card className="h-[600px]">
+              {/* 실시간 차트 (왼쪽으로 이동) */}
+              <Card className="h-[400px]">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BarChart3 className="h-5 w-5 text-primary" />
                     실시간 차트 - {selectedStock ? `${selectedStock.name} (${selectedStock.code})` : mainStock}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="h-[520px]">
+                <CardContent className="h-[320px]">
                   <TradingViewChart 
                     symbol={mainStock} 
                     onStockChange={handleStockChange}
                   />
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* 오른쪽 컬럼: 분석 결과 */}
+            <div className="lg:col-span-2">
+              <Card className="h-[600px]">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 text-primary" />
+                    분석 결과
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="h-[520px] overflow-y-auto">
+                  <div data-analysis-results>
+                    <AnalysisResults 
+                      results={analysisResults}
+                      selectedTab={selectedAnalysisTab}
+                      onTabChange={setSelectedAnalysisTab}
+                      isLoading={executeNewsMutation.isPending || executeChartMutation.isPending || executeDisclosureMutation.isPending || executeFlowMutation.isPending || executeReportMutation.isPending}
+                    />
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -513,6 +522,236 @@ const DevelopmentFeatures = () => {
             </CardContent>
           </Card>
         ))}
+      </div>
+    </div>
+  );
+};
+
+// 분석 결과 컴포넌트
+interface AnalysisResultsProps {
+  results: any;
+  selectedTab: 'news' | 'chart' | 'disclosure' | 'flow' | 'report';
+  onTabChange: (tab: 'news' | 'chart' | 'disclosure' | 'flow' | 'report') => void;
+  isLoading: boolean;
+}
+
+const AnalysisResults = ({ results, selectedTab, onTabChange, isLoading }: AnalysisResultsProps) => {
+  
+  const tabs = [
+    { id: 'news', label: '뉴스 분석', icon: '📰' },
+    { id: 'chart', label: '차트 분석', icon: '📈' },
+    { id: 'disclosure', label: '공시 분석', icon: '📋' },
+    { id: 'flow', label: '수급 분석', icon: '💰' },
+    { id: 'report', label: '리포트 분석', icon: '📊' },
+  ];
+
+  // 탭 변경 핸들러
+  const handleTabChange = (tabId: string) => {
+    onTabChange(tabId as any);
+  };
+
+  const getSentimentColor = (sentiment: string) => {
+    switch (sentiment) {
+      case 'positive': return 'text-green-600 bg-green-50';
+      case 'negative': return 'text-red-600 bg-red-50';
+      default: return 'text-gray-600 bg-gray-50';
+    }
+  };
+
+  const getImpactColor = (impact: string) => {
+    switch (impact) {
+      case 'high': return 'text-red-600 bg-red-50';
+      case 'medium': return 'text-yellow-600 bg-yellow-50';
+      case 'low': return 'text-green-600 bg-green-50';
+      default: return 'text-gray-600 bg-gray-50';
+    }
+  };
+
+  const renderNewsResults = () => (
+    <div className="space-y-4">
+      {results.news.length > 0 ? (
+        results.news.map((item: any, index: number) => (
+          <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start mb-2">
+              <h4 className="font-medium text-gray-900">{item.title}</h4>
+              <div className="flex gap-2">
+                <Badge className={getSentimentColor(item.sentiment)}>
+                  {item.sentiment === 'positive' ? '긍정' : '부정'}
+                </Badge>
+                <Badge className={getImpactColor(item.impact_score)}>
+                  {item.impact_score > 0.7 ? '높음' : item.impact_score > 0.4 ? '보통' : '낮음'}
+                </Badge>
+              </div>
+            </div>
+            <p className="text-gray-600 text-sm mb-2">{item.summary}</p>
+            <p className="text-xs text-gray-500">{item.created_at}</p>
+          </div>
+        ))
+      ) : (
+        <div className="text-center py-8 text-gray-500">
+          <p>뉴스 분석 결과가 없습니다.</p>
+          <p className="text-sm mt-2">왼쪽의 "뉴스 즉시 실행해보기" 버튼을 클릭해보세요.</p>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderChartResults = () => (
+    <div className="space-y-4">
+      {results.chart.length > 0 ? (
+        results.chart.map((item: any, index: number) => (
+          <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="font-medium text-gray-900">차트 분석</h4>
+              <Badge variant="outline">{item.date}</Badge>
+            </div>
+            <div className="space-y-2 text-sm">
+              {item.golden_cross && <p className="text-green-600">✓ 골든크로스</p>}
+              {item.dead_cross && <p className="text-red-600">✗ 데드크로스</p>}
+              {item.bollinger_touch && <p className="text-blue-600">📊 볼린저 밴드 터치</p>}
+              {item.rsi_condition && <p className="text-orange-600">📈 RSI 조건</p>}
+              {item.volume_surge && <p className="text-purple-600">📊 거래량 급증</p>}
+            </div>
+            <p className="text-xs text-gray-500 mt-2">종가: {item.close_price?.toLocaleString()}원</p>
+          </div>
+        ))
+      ) : (
+        <div className="text-center py-8 text-gray-500">
+          <p>차트 분석 결과가 없습니다.</p>
+          <p className="text-sm mt-2">왼쪽의 "차트 즉시 실행해보기" 버튼을 클릭해보세요.</p>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderDisclosureResults = () => (
+    <div className="space-y-4">
+      {results.disclosure.length > 0 ? (
+        results.disclosure.map((item: any, index: number) => (
+          <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start mb-2">
+              <h4 className="font-medium text-gray-900">{item.report_nm}</h4>
+              <Badge className={getSentimentColor(item.sentiment)}>
+                {item.sentiment === 'positive' ? '긍정' : '부정'}
+              </Badge>
+            </div>
+            <p className="text-gray-600 text-sm mb-2">{item.summary}</p>
+            <p className="text-xs text-gray-500">{item.rcept_dt}</p>
+          </div>
+        ))
+      ) : (
+        <div className="text-center py-8 text-gray-500">
+          <p>공시 분석 결과가 없습니다.</p>
+          <p className="text-sm mt-2">왼쪽의 "공시 즉시 실행해보기" 버튼을 클릭해보세요.</p>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderFlowResults = () => (
+    <div className="space-y-4">
+      {results.flow.length > 0 ? (
+        results.flow.map((item: any, index: number) => (
+          <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="font-medium text-gray-900">수급 분석</h4>
+              <Badge className={item.trade_date ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}>
+                {item.trade_date || '실시간'}
+              </Badge>
+            </div>
+            <div className="space-y-1 text-sm">
+              <p className="text-gray-600">기관: <span className={`font-medium ${item.inst_net > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {item.inst_net?.toLocaleString()}주
+              </span></p>
+              <p className="text-gray-600">외국인: <span className={`font-medium ${item.foreign_net > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {item.foreign_net?.toLocaleString()}주
+              </span></p>
+              <p className="text-gray-600">개인: <span className={`font-medium ${item.individ_net > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {item.individ_net?.toLocaleString()}주
+              </span></p>
+            </div>
+          </div>
+        ))
+      ) : (
+        <div className="text-center py-8 text-gray-500">
+          <p>수급 분석 결과가 없습니다.</p>
+          <p className="text-sm mt-2">왼쪽의 "수급 즉시 실행해보기" 버튼을 클릭해보세요.</p>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderReportResults = () => (
+    <div className="space-y-4">
+      {results.report.length > 0 ? (
+        results.report.map((item: any, index: number) => (
+          <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start mb-2">
+              <h4 className="font-medium text-gray-900">{item.report_title}</h4>
+              <div className="flex gap-2">
+                <Badge className={item.recommendation === '매수' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                  {item.recommendation}
+                </Badge>
+                {item.target_price && (
+                  <Badge variant="outline">목표가: {item.target_price?.toLocaleString()}원</Badge>
+                )}
+              </div>
+            </div>
+            <p className="text-gray-600 text-sm mb-2">{item.summary}</p>
+            <p className="text-xs text-gray-500">{item.report_date}</p>
+          </div>
+        ))
+      ) : (
+        <div className="text-center py-8 text-gray-500">
+          <p>리포트 분석 결과가 없습니다.</p>
+          <p className="text-sm mt-2">왼쪽의 "리포트 즉시 실행해보기" 버튼을 클릭해보세요.</p>
+        </div>
+      )}
+    </div>
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-gray-600">분석 실행 중...</p>
+          <p className="text-sm text-gray-500 mt-2">잠시만 기다려주세요</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full">
+      {/* 탭 네비게이션 */}
+      <div className="flex space-x-1 mb-4 border-b">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            data-tab={tab.id}
+            onClick={() => handleTabChange(tab.id)}
+            className={`px-3 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+              selectedTab === tab.id
+                ? 'bg-primary text-white'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            <span className="mr-1">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+
+
+      {/* 결과 내용 */}
+      <div className="space-y-4">
+        {selectedTab === 'news' && renderNewsResults()}
+        {selectedTab === 'chart' && renderChartResults()}
+        {selectedTab === 'disclosure' && renderDisclosureResults()}
+        {selectedTab === 'flow' && renderFlowResults()}
+        {selectedTab === 'report' && renderReportResults()}
       </div>
     </div>
   );

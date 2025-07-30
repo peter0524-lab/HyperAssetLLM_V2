@@ -1019,7 +1019,7 @@ class ChartAnalysisService:
             for stock_code, stock_info in self.stocks_config.items():
                 if not stock_info.get("enabled", True):
                     continue
-                    
+                
                 try:
                     # 1. 과거 데이터 수집
                     df = await self.fetch_historical_data(stock_code)
@@ -1237,7 +1237,7 @@ class ChartAnalysisService:
             return []
 
     async def send_condition_notification(self, results: Dict) -> None:
-        """조건 만족 시 알림 전송"""
+        """조건 만족 시 알림 전송 (사용자별 설정 확인)"""
         try:
             # 종목 코드로 최근 만족 날짜 조회
             satisfied_conditions = results.get("satisfied_conditions", [])
@@ -1267,13 +1267,87 @@ class ChartAnalysisService:
             # 알림 메시지 생성
             message = await self._format_notification_message(results)
 
-            # 텔레그램 알림 전송
-            telegram_client = TelegramBotClient()
-            await telegram_client.send_message_async(message)
+            # 🆕 사용자별 알림 전송 (설정 확인)
+            await self._send_user_notifications(results, message)
+            
+            # 🆕 채널 알림 전송 (기존 방식 유지)
+            await self._send_channel_notification(message)
 
         except Exception as e:
             self.logger.error(f"알림 전송 실패: {e}")
             raise
+    
+    async def _send_user_notifications(self, results: Dict, message: str):
+        """사용자별 알림 전송 (설정 확인 + 종목 필터링)"""
+        try:
+            # UserConfigLoader import
+            from shared.service_config.user_config_loader import UserConfigLoader
+            
+            config_loader = UserConfigLoader()
+            stock_code = results.get("stock_code", "")
+            
+            # 모든 활성 사용자 조회 (현재는 테스트용으로 고정 사용자)
+            # TODO: 실제로는 데이터베이스에서 활성 사용자 목록을 조회해야 함
+            test_users = ["1"]  # 테스트용 사용자 ID
+            
+            for user_id in test_users:
+                try:
+                    # 🆕 사용자가 이 종목에 관심이 있는지 확인
+                    is_interested = await config_loader.is_user_interested_in_stock(user_id, stock_code)
+                    if not is_interested:
+                        self.logger.debug(f"⚠️ 사용자가 종목에 관심 없음: {user_id} - {stock_code}")
+                        continue
+                    
+                    # 사용자별 알림 설정 조회
+                    notification_settings = await config_loader.get_user_notification_settings(user_id)
+                    
+                    # 차트 알림이 활성화되어 있고, 전체 알림이 활성화된 경우만 전송
+                    if (notification_settings.get("enabled", True) and 
+                        notification_settings.get("chart_alerts", True)):
+                        
+                        # 사용자별 텔레그램 설정 조회
+                        telegram_config = await config_loader.get_user_telegram_config(user_id)
+                        if telegram_config and telegram_config.get("enabled", True):
+                            # 개별 사용자에게 알림 전송
+                            await self._send_user_notification(user_id, message, telegram_config)
+                            self.logger.info(f"✅ 사용자 차트 알림 전송 완료: {user_id} - {stock_code}")
+                        else:
+                            self.logger.debug(f"⚠️ 사용자 텔레그램 비활성화: {user_id}")
+                    else:
+                        self.logger.debug(f"⚠️ 사용자 차트 알림 비활성화: {user_id}")
+                        
+                except Exception as user_error:
+                    self.logger.error(f"❌ 사용자 차트 알림 전송 실패: {user_id} - {user_error}")
+                    
+        except Exception as e:
+            self.logger.error(f"❌ 사용자별 차트 알림 전송 실패: {e}")
+    
+    async def _send_user_notification(self, user_id: str, message: str, telegram_config: Dict):
+        """개별 사용자에게 알림 전송"""
+        try:
+            # 사용자별 채팅 ID 사용
+            chat_id = telegram_config.get("chat_id")
+            if chat_id:
+                # 텔레그램 봇으로 개별 사용자에게 전송
+                from shared.apis.telegram_api import TelegramBotClient
+                telegram_bot = TelegramBotClient()
+                telegram_bot.send_message(message, str(chat_id))
+                self.logger.info(f"✅ 개별 사용자 차트 알림 전송 완료: {user_id} -> {chat_id}")
+            else:
+                self.logger.warning(f"⚠️ 사용자 채팅 ID 없음: {user_id}")
+                
+        except Exception as e:
+            self.logger.error(f"❌ 개별 사용자 차트 알림 전송 실패: {user_id} - {e}")
+    
+    async def _send_channel_notification(self, message: str):
+        """채널 알림 전송 (기존 방식)"""
+        try:
+            from shared.apis.telegram_api import TelegramBotClient
+            telegram_bot = TelegramBotClient()
+            await telegram_bot.send_message_async(message)
+            self.logger.info("✅ 채널 차트 알림 전송 완료")
+        except Exception as e:
+            self.logger.error(f"❌ 채널 차트 알림 전송 실패: {e}")
 
     async def restore_subscriptions(self, stock_code: str):
         """연결 종료 전 구독 정보 복구"""

@@ -476,6 +476,7 @@ class FlowAnalysisService:
                         cursor.execute(update_query, (stock_code,))
                         conn.commit()
                     
+                    
                     await self.send_composite_alert(stock_code)
                     self.logger.info(f"복합 트리거 발생: {stock_code}")
 
@@ -536,7 +537,7 @@ class FlowAnalysisService:
                 }
 
             return None
-
+        
         except Exception as e:
             self.logger.error(f"유사 사례 검색 실패: {e}")
             return None
@@ -569,7 +570,7 @@ class FlowAnalysisService:
             similar_case = await self.search_similar_cases(stock_code)
 
             # 메시지 생성
-            message = self.build_alert_message(signal_data, similar_case)
+            message = self.build_composite_alert_message(signal_data, similar_case)
 
             # 텔레그램 전송
             await self.telegram_bot.send_message(message)
@@ -585,8 +586,106 @@ class FlowAnalysisService:
         except Exception as e:
             self.logger.error(f"복합 알림 전송 실패: {e}")
 
-    def build_alert_message(self, signal_data: Dict, similar_case: Dict = None) -> str:
-        """알림 메시지 구성"""
+    async def send_institutional_alert(self, stock_code: str):
+        """기관 매수 알림 전송 (3일 이상 순매수)"""
+        try:
+            # 최근 5일간 기관 매수 일수 확인
+            query = """
+                SELECT COUNT(*) as inst_buy_days,
+                       AVG(inst_net) as avg_inst_net,
+                       MAX(close_price) as max_price,
+                       MIN(close_price) as min_price
+                FROM eod_flows 
+                WHERE ticker = %s 
+                AND trade_date >= DATE_SUB(CURDATE(), INTERVAL 5 DAY)
+                AND inst_net > 0
+            """
+
+            with self.mysql_client.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                cursor.execute(query, (stock_code,))
+                result = cursor.fetchone()
+
+            if not result or result["inst_buy_days"] < 3:
+                return  # 3일 미만이면 알림 발송 안함
+
+            # 메시지 생성
+            message = self.build_institutional_alert_message(stock_code, result)
+
+            # 텔레그램 전송
+            await self.telegram_bot.send_message(message)
+            
+            # 최근 알람 메시지 저장
+            await save_latest_signal(message)
+
+            # 알림 로그 저장
+            await self.save_alert_log(stock_code, "INSTITUTIONAL", message)
+
+            self.logger.info(f"기관 매수 알림 전송 완료: {stock_code}")
+
+        except Exception as e:
+            self.logger.error(f"기관 매수 알림 전송 실패: {e}")
+
+    async def send_program_alert(self, stock_code: str):
+        """프로그램 매매 알림 전송 (실시간 프로그램 급증)"""
+        try:
+            # 최근 프로그램 매매 데이터 확인
+            query = """
+                SELECT pf.*, 
+                       AVG(ABS(pf2.net_volume)) as avg_prog_volume
+                FROM program_flows pf
+                LEFT JOIN (
+                    SELECT net_volume 
+                    FROM program_flows 
+                    WHERE ticker = %s 
+                    AND ts >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                ) pf2 ON 1=1
+                WHERE pf.ticker = %s 
+                AND pf.ts >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+                ORDER BY pf.ts DESC
+                LIMIT 1
+            """
+
+            with self.mysql_client.get_connection() as conn:
+                cursor = conn.cursor(pymysql.cursors.DictCursor)
+                cursor.execute(query, (stock_code, stock_code))
+                result = cursor.fetchone()
+
+            if not result:
+                return
+
+            # 프로그램 매매 비율 계산
+            recent_volume = abs(result.get("net_volume", 0))
+            avg_volume = result.get("avg_prog_volume", 0)
+            
+            if avg_volume == 0:
+                return
+                
+            prog_ratio = recent_volume / avg_volume
+
+            # 2배 이상 급증했을 때만 알림
+            if prog_ratio < 2.0:
+                return
+
+            # 메시지 생성
+            message = self.build_program_alert_message(stock_code, result, prog_ratio)
+
+            # 텔레그램 전송
+            await self.telegram_bot.send_message(message)
+            
+            # 최근 알람 메시지 저장
+            await save_latest_signal(message)
+
+            # 알림 로그 저장
+            await self.save_alert_log(stock_code, "PROGRAM", message)
+
+            self.logger.info(f"프로그램 매매 알림 전송 완료: {stock_code}")
+
+        except Exception as e:
+            self.logger.error(f"프로그램 매매 알림 전송 실패: {e}")
+
+    def build_composite_alert_message(self, signal_data: Dict, similar_case: Dict = None) -> str:
+        """복합 신호 알림 메시지 구성"""
         try:
             ticker = signal_data["ticker"]
             trigger_data = json.loads(signal_data.get("trigger_data", "{}"))
@@ -610,8 +709,57 @@ class FlowAnalysisService:
             return "\n".join(message_lines)
 
         except Exception as e:
-            self.logger.error(f"메시지 구성 실패: {e}")
+            self.logger.error(f"복합 신호 메시지 구성 실패: {e}")
             return f"🏹 {signal_data.get('ticker', 'Unknown')} 복합 신호 발생"
+
+    def build_institutional_alert_message(self, stock_code: str, result: Dict) -> str:
+        """기관 매수 알림 메시지 구성"""
+        try:
+            inst_buy_days = result.get("inst_buy_days", 0)
+            avg_inst_net = result.get("avg_inst_net", 0)
+            max_price = result.get("max_price", 0)
+            min_price = result.get("min_price", 0)
+            
+            price_change = ((max_price - min_price) / min_price * 100) if min_price > 0 else 0
+
+            message_lines = [
+                f"🏢 <b>{stock_code} 기관 순매수 신호</b>",
+                f"• 최근 5일 중 {inst_buy_days}일 기관 순매수",
+                f"• 평균 기관 순매수: {avg_inst_net:,.0f}주",
+                f"• 기간 중 가격 변동: {price_change:+.2f}%"
+            ]
+
+            return "\n".join(message_lines)
+
+        except Exception as e:
+            self.logger.error(f"기관 매수 메시지 구성 실패: {e}")
+            return f"🏢 {stock_code} 기관 순매수 신호 발생"
+
+    def build_program_alert_message(self, stock_code: str, result: Dict, prog_ratio: float) -> str:
+        """프로그램 매매 알림 메시지 구성"""
+        try:
+            net_volume = result.get("net_volume", 0)
+            net_value = result.get("net_value", 0)
+            side = "매수" if net_volume > 0 else "매도"
+            ts = result.get("ts", datetime.now())
+
+            message_lines = [
+                f"⚡ <b>{stock_code} 프로그램 {side} 급증</b>",
+                f"• {ts.strftime('%H:%M:%S')} 기준",
+                f"• 순매수량: {abs(net_volume):,.0f}주",
+                f"• 순매수금액: {abs(net_value):,.0f}원",
+                f"• 30일 평균 대비 {prog_ratio:.1f}배 급증"
+            ]
+
+            return "\n".join(message_lines)
+
+        except Exception as e:
+            self.logger.error(f"프로그램 매매 메시지 구성 실패: {e}")
+            return f"⚡ {stock_code} 프로그램 매매 급증"
+
+    def build_alert_message(self, signal_data: Dict, similar_case: Dict = None) -> str:
+        """기존 알림 메시지 구성 (하위 호환성)"""
+        return self.build_composite_alert_message(signal_data, similar_case)
 
     async def save_alert_log(self, stock_code: str, alert_type: str, message: str):
         """알림 로그 저장"""

@@ -449,6 +449,78 @@ export const api = {
     }
   },
 
+  // ===== 대시보드 분석 결과 조회 =====
+  async getDashboardAnalysisResults(userId: string): Promise<any> {
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("📊 대시보드 분석 결과 조회 API 호출 시작");
+    console.log("📋 사용자 ID:", userId);
+    console.log("🔗 API Gateway 호출 URL: /dashboard/analysis-results/" + userId);
+    console.log("📤 요청 방식: GET");
+    
+    try {
+      const startTime = Date.now();
+      const response = await gatewayClient.get(`/dashboard/analysis-results/${userId}`);
+      const requestTime = Date.now() - startTime;
+      
+      console.log("✅ 대시보드 분석 결과 조회 성공!");
+      console.log("⏱️ 요청 완료 시간:", requestTime + "ms");
+      console.log("📋 응답 데이터:", response.data);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      
+      return response.data;
+    } catch (error) {
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.error('❌ 대시보드 분석 결과 조회 실패!');
+      console.error('🔍 에러 상세 정보:');
+      console.error('📋 메시지:', error.message);
+      console.error('📋 상태 코드:', error.response?.status);
+      console.error('📋 상태 텍스트:', error.response?.statusText);
+      console.error('📋 요청 URL:', error.config?.url);
+      console.error('📋 요청 방식:', error.config?.method?.toUpperCase());
+      console.error('📋 응답 데이터:', error.response?.data);
+      console.error('📋 에러 코드:', error.code);
+      console.error('🔍 전체 에러 객체:', error);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      throw error;
+    }
+  },
+
+  async getDashboardAnalysisByType(userId: string, analysisType: string): Promise<any> {
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("📊 특정 분석 타입별 결과 조회 API 호출 시작");
+    console.log("📋 사용자 ID:", userId);
+    console.log("📋 분석 타입:", analysisType);
+    console.log("🔗 API Gateway 호출 URL: /dashboard/analysis-results/" + userId + "/" + analysisType);
+    console.log("📤 요청 방식: GET");
+    
+    try {
+      const startTime = Date.now();
+      const response = await gatewayClient.get(`/dashboard/analysis-results/${userId}/${analysisType}`);
+      const requestTime = Date.now() - startTime;
+      
+      console.log("✅ 특정 분석 타입별 결과 조회 성공!");
+      console.log("⏱️ 요청 완료 시간:", requestTime + "ms");
+      console.log("📋 응답 데이터:", response.data);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      
+      return response.data;
+    } catch (error) {
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.error('❌ 특정 분석 타입별 결과 조회 실패!');
+      console.error('🔍 에러 상세 정보:');
+      console.error('📋 메시지:', error.message);
+      console.error('📋 상태 코드:', error.response?.status);
+      console.error('📋 상태 텍스트:', error.response?.statusText);
+      console.error('📋 요청 URL:', error.config?.url);
+      console.error('📋 요청 방식:', error.config?.method?.toUpperCase());
+      console.error('📋 응답 데이터:', error.response?.data);
+      console.error('📋 에러 코드:', error.code);
+      console.error('🔍 전체 에러 객체:', error);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      throw error;
+    }
+  },
+
   async updateUserWantedServicesDetailed(
     userId: string,
     services: { service_name: string; enabled: boolean; priority: number }[]

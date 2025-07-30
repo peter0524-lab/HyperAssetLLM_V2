@@ -74,8 +74,8 @@ const Stocks = () => {
 
   // 종목 설정 저장
   const updateStocksMutation = useMutation({
-    mutationFn: (stocks: StockInfo[]) => api.updateUserStocks(userId, { stocks }),
-    onSuccess: () => {
+    mutationFn: (stocks: StockInfo[]) => api.updateUserStocks(userId, { stocks }),  // :(입력값) => 실행할 함수   이떄 (입력값의 이름: 입력값의 데이터 타입) <- 이게 입력값임 StockInfo라는 타입을 가진 객체들의 배열임 
+    onSuccess: () => { //성공했을떄 뜨는거임 
       toast.success("✅ 관심 종목이 저장되었습니다!");
       queryClient.invalidateQueries({ queryKey: ['userConfig', userId] });
     },
