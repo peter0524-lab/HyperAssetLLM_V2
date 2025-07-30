@@ -198,40 +198,14 @@ class HyperCLOVAClient:
                         "impact_duration": "중기",
                     }
             
-    async def generate_comprehensive_report_and_keywords(self, research_report: str, weekly_market_data: List[Dict]) -> Dict:
+    async def generate_comprehensive_report_and_keywords(self, prompt) -> Dict:
         """
         최신 리서치 보고서 텍스트와 주간 시장 데이터를 기반으로 LLM에 프롬프트를 전달하여
         종합 주간 리포트와 핵심 키워드를 생성합니다.
         """
         try:
 
-            prompt = f"""
-            최신 리서치 보고서와 일주일치 뉴스, 공시, 차트 데이터를 보고 분석하여 최대한 자세하게 주간 리포트를 작성하시오.
-            보고서에는 다음 내용을 포함해야 합니다:
-            
-            📌 다음 항목을 순서대로 포함하시오. 각 항목은 반드시 새로운 줄에 시작하며, **문단 시작을 '*'로 표시**하시오:
-            *시장 전반에 대한 요약 및 주요 이슈
-            *특정 종목에 대한 분석 (긍정적/부정적 요인, 투자 의견 등)
-            *주요 뉴스 및 공시 내용 요약 (날짜별 구분)
-            *차트 데이터 분석 (가격 변동, 거래량 추이 등)
-            *향후 전망 및 투자 전략 제안
-            *보고서의 핵심 키워드 (문단 맨 마지막에 표시)
-
-            ---
-            최신 리서치 보고서:
-            {research_report}
-
-            ---
-            일주일치 시장 데이터:
-            {weekly_market_data}
-
-            ---
-            **응답 결과는 반드시 다음 JSON 형태로 하나의 json 객체로 반환해야 합니다 (모든 key와 string은 큰따옴표 `"`로 둘러쌈)**:
-            {{
-            "report": "리포트 내용 여기에",
-            "keywords": ["키워드1", "키워드2", "키워드3"]
-            }}
-            """
+           
             
             session = await self._get_session()
             request_id = str(uuid.uuid4()).replace('-', '')

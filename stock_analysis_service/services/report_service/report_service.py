@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import requests
+import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union, Any, Tuple
 from pathlib import Path
@@ -299,7 +300,6 @@ class ReportService:
             c = canvas.Canvas(buffer, pagesize=letter)
 
             try:
-                # static/fonts/NanumGothic.ttf 경로에서 폰트 로드
                 font_path = Path(__file__).parent.parent.parent / "static" / "fonts" / "NanumGothic.ttf"
                 if not font_path.exists():
                     raise FileNotFoundError(f"폰트 파일을 찾을 수 없습니다: {font_path}")
@@ -314,18 +314,38 @@ class ReportService:
             textobject.setLeading(14)
 
             wrapped_lines = []
-            for line in report_text.split('\n'):
-                # 긴 줄은 잘라서 wrap
-                
-                # ✅ 문단 구분용: * 로 시작하면 빈 줄 추가
-                if line.startswith("*"):
-                    wrapped_lines.append("")  # 문단 간 빈 줄
-                    line = "• " + line.lstrip("*").strip()  # 보기 좋게 마크 달기 (★, • 등 취향)
-                wrapped = wrap(line, width=50)  # width는 글자 수 기준
-                wrapped_lines.extend(wrapped if wrapped else [""])  # 빈 줄도 유지
 
+            # 🔥 '#'로 시작하는 문단을 기준으로 분할, 줄바꿈 없이 이어졌을 때도 처리됨
+            paragraphs = re.split(r'(?=#)', report_text)
+
+            for paragraph in paragraphs:
+                paragraph = paragraph.strip()
+                if not paragraph:
+                    continue
+
+                if paragraph.startswith("#"):
+                    # '#' 문단 제목과 본문이 한 줄에 붙어 있는 경우 분리 (예: "#제목 - 내용")
+                    parts = paragraph.split("-", 1)
+                    title = parts[0].strip()
+                    body = parts[1].strip() if len(parts) > 1 else ""
+
+                    # 문단 제목
+                    wrapped_lines.append("")
+                    wrapped_lines.append("• " + title.lstrip("#").strip())
+
+                    # 본문
+                    wrapped = wrap(body, width=50)
+                    wrapped_lines.extend(wrapped if wrapped else [""])
+
+                else:
+                    # 그냥 일반 문단
+                    wrapped = wrap(paragraph, width=50)
+                    wrapped_lines.extend(wrapped if wrapped else [""])
+
+            # PDF에 줄별로 작성
             for line in wrapped_lines:
                 textobject.textLine(line)
+
             c.drawText(textobject)
             c.save()
             buffer.seek(0)
@@ -334,7 +354,6 @@ class ReportService:
         except Exception as e:
             self.logger.error(f"PDF 생성 실패: {e}")
             return BytesIO()
-        
 
    
     async def send_weekly_report_telegram(self, stock_code: str, pdf_buffer: BytesIO, keywords: List[str]):
@@ -446,9 +465,7 @@ class ReportService:
     async def process_weekly_report(self, stock_code: str):
         """주간 보고서 처리"""
         
-        if not stock_code:
-            self.logger.warning("stock_code가 제공되지 않았습니다. 기본값 '006800'으로 설정합니다.")
-            stock_code = "006800"
+        
         try:
             self.logger.info(f"주간 보고서 처리 시작: {stock_code}")
 
@@ -465,16 +482,16 @@ class ReportService:
             
             # 종합 보고서 및 키워드 생성 (기존 프롬프트 사용)
             prompt = f"""
-            최신 리서치 보고서와 일주일치 뉴스, 공시, 차트 데이터를 보고 분석하여 최대한 자세하게 주간 리포트를 작성하시오.
+            📌최신 리서치 보고서와 일주일치 뉴스, 공시, 차트 데이터를 보고 분석하여 최대한 자세하게 주간 리포트를 작성하시오.
             보고서에는 다음 내용을 포함해야 합니다:
             
-            📌 다음 항목을 순서대로 포함하시오. 각 항목은 반드시 새로운 줄에 시작하며, **문단 시작을 '*'로 표시**하시오:
-            *시장 전반에 대한 요약 및 주요 이슈
-            *특정 종목에 대한 분석 (긍정적/부정적 요인, 투자 의견 등)
-            *주요 뉴스 및 공시 내용 요약 (날짜별 구분)
-            *차트 데이터 분석 (가격 변동, 거래량 추이 등)
-            *향후 전망 및 투자 전략 제안
-            *보고서의 핵심 키워드 (문단 맨 마지막에 표시)
+            📌 다음 항목을 순서대로 포함하시오. **각 항목은 반드시 새로운 줄에 시작하며, 문단 시작을 '#(반드시 # 하나)'로 표시**하시오:
+            #시장 전반에 대한 요약 및 주요 이슈
+            #특정 종목에 대한 분석 (긍정적/부정적 요인, 투자 의견 등)
+            #주요 뉴스 및 공시 내용 요약 (날짜별 구분)
+            #차트 데이터 분석 (가격 변동, 거래량 추이 등)
+            #향후 전망 및 투자 전략 제안
+            #보고서의 핵심 키워드 (문단 맨 마지막에 표시)
 
             ---
             최신 리서치 보고서:
@@ -488,13 +505,21 @@ class ReportService:
             **응답 결과는 반드시 다음 JSON 형태로 하나의 json 객체로 반환해야 합니다 (모든 key와 string은 큰따옴표 `"`로 둘러쌈)**:
             {{
             "report": "리포트 내용 여기에",
-            "keywords": ["키워드1", "키워드2", "키워드3"]
+            "keywords": ["키워드1", "키워드2", "키워드3"..]
             }}
             """
             
-            report_response = await self.llm_manager.generate_response(self.current_user_id, prompt)
+            try:
+                comprehensive_report_data = await self.llm_manager.generate_response(self.current_user_id, prompt)
+            except:
+                # 파싱 실패 시 기본값
+                comprehensive_report_data = {
+                    "report": "주간 보고서 생성 실패",
+                    "keywords": ["보고서", "생성", "실패"]
+                }
             
             # 응답 파싱
+            """
             try:
                 import json
                 comprehensive_report_data = json.loads(report_response)
@@ -504,7 +529,7 @@ class ReportService:
                     "report": "주간 보고서 생성 실패",
                     "keywords": ["보고서", "생성", "실패"]
                 }
-            
+            """
             
             
             # 4. 보고서 text만 텔레그램으로 전송 (pdf 형식으로)
@@ -726,7 +751,18 @@ async def execute_weekly_report() -> Dict:
         total_reports = 0
         
         # 사용자 설정된 종목들에 대해 보고서 생성
-        for stock_code, stock_info in report_service.stocks_config.items():
+        try:
+            stock_items = report_service.stocks_config.items()
+            # items()는 되지만 비어있을 경우 체크
+            if not stock_items:
+                raise ValueError("stocks_config가 비어있음")
+
+        except Exception as e:
+            logging.warning(f"⚠️ 종목 설정 불러오기 실패 또는 비어있음: {e} → 기본 종목으로 대체")
+            stock_items = [("006800", {})]
+
+        for stock_code, _ in stock_items:
+        
             try:
                 # 리서치 보고서 크롤링 (예시)
                 logging.info(f"📊 {stock_code} 주간 보고서 생성 중...")
@@ -935,4 +971,5 @@ def main():
 
 
 if __name__ == "__main__":
+    #asyncio.run(execute_weekly_report())
     main()

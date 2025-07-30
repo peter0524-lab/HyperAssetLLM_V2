@@ -877,9 +877,18 @@ async def execute_eod_processing() -> Dict:
         flow_service = get_flow_service()
 
         # 종목 정보 로드
-        with open(project_root / "config" / "stocks.json", "r", encoding="utf-8") as f:
-            stocks_config = json.load(f)
-            stock_codes = [stock["code"] for stock in stocks_config["stocks"]]
+            # 종목 정보 로드
+        try:
+            with open(project_root / "config" / "stocks.json", "r", encoding="utf-8") as f:
+                stocks_config = json.load(f)
+                stock_codes = [stock["code"] for stock in stocks_config.get("stocks", [])]
+
+            if not stock_codes:
+                raise ValueError("⚠️ 종목 리스트가 비어 있음")
+
+        except Exception as e:
+            logger.warning(f"⚠️ 종목 설정 불러오기 실패 또는 비어 있음: {e} → 기본 종목으로 대체")
+            stock_codes = ["006800"]
 
         processed_stocks = []
         triggered_stocks = []
@@ -1182,7 +1191,8 @@ async def main():
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--service":
         # 서비스 모드 (실제 분석 작업 실행)
-        asyncio.run(main())
+        #asyncio.run(main())
+        asyncio.run(execute_eod_processing())
     else:
         # API 서버 모드 (기본값)
         print("🚀 수급 분석 API 서버 시작 (포트: 8010)")

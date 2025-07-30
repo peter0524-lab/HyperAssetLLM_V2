@@ -89,7 +89,7 @@ class LLMManager:
                 client = self.clients["hyperclova"]
             
             # LLM 응답 생성
-            response = await client.generate_response(prompt, **kwargs)
+            response = await client.generate_comprehensive_report_and_keywords(prompt, **kwargs)
             
             self.logger.debug(f"✅ LLM 응답 생성 완료: {client.__class__.__name__}")
             return response
