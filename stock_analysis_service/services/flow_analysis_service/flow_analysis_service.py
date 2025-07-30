@@ -445,51 +445,6 @@ class FlowAnalysisService:
         except Exception as e:
             self.logger.error(f"기관 트리거 처리 실패: {e}")
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-    async def check_composite_trigger(self, stock_code: str):
-        """복합 트리거 체크 (기관 + 프로그램)"""
-        try:
-            # 당일 기준으로 복합 신호 확인
-            query = """
-                SELECT daily_inst_strong, rt_prog_strong, composite_strong
-                FROM pattern_signals
-                WHERE ticker = %s AND DATE(ref_time) = CURDATE()
-                ORDER BY ref_time DESC
-                LIMIT 1
-            """
-
-            with self.mysql_client.get_connection() as conn:
-                cursor = conn.cursor(pymysql.cursors.DictCursor)
-                cursor.execute(query, (stock_code,))
-                result = cursor.fetchone()
-
-            if result and result["daily_inst_strong"] and result["rt_prog_strong"]:
-                if not result["composite_strong"]:  # 복합 신호가 새로 발생한 경우만
-                    # composite_strong 플래그 업데이트
-                    update_query = """
-                        UPDATE pattern_signals 
-                        SET composite_strong = TRUE, updated_at = CURRENT_TIMESTAMP
-                        WHERE ticker = %s AND DATE(ref_time) = CURDATE()
-                    """
-                    
-                    with self.mysql_client.get_connection() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute(update_query, (stock_code,))
-                        conn.commit()
-                    
-                    
-                    await self.send_composite_alert(stock_code)
-                    self.logger.info(f"복합 트리거 발생: {stock_code}")
-
-        except Exception as e:
-            self.logger.error(f"복합 트리거 체크 실패: {e}")
-=======
-    # 복합 트리거 체크 함수 제거 (각각 독립적으로 알림 전송)
->>>>>>> Stashed changes
-=======
-    # 복합 트리거 체크 함수 제거 (각각 독립적으로 알림 전송)
->>>>>>> Stashed changes
 
     # === 과거 유사 사례 검색 (SQL Only) ===
 
