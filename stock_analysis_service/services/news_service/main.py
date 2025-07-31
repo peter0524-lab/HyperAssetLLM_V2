@@ -3603,7 +3603,6 @@ def should_execute_now() -> Tuple[bool, str]:
 async def execute_news_crawling() -> Dict:
     """뉴스 크롤링 실행"""
     global last_execution_time
-    
     try:
         logger.info("🚀 뉴스 크롤링 실행 시작")
         
@@ -3664,7 +3663,7 @@ async def execute_news_crawling() -> Dict:
             "success": True,
             "processed_stocks": len(processed_stocks),
             "total_news": total_news,
-            "execution_time": last_execution_time.isoformat()
+            "execution_time": last_execution_time.isoformat(),
         }
         
         logger.info(f"✅ 뉴스 크롤링 완료: {len(processed_stocks)}개 종목, {total_news}개 뉴스")

@@ -1014,9 +1014,18 @@ class ChartAnalysisService:
     async def _check_all_stocks_conditions(self):
         """모든 종목의 조건 체크"""
         try:
-            self.logger.info(f"🔍 전체 종목 조건 체크 시작: {len(self.stocks_config)}개 종목")
+            try:
+                stock_items = self.stocks_config.items()
+                if not stock_items:
+                    raise ValueError("stocks_config가 비어있음")
+            except Exception as e:
+                self.logger.warning(f"⚠️ 종목 설정 불러오기 실패 또는 비어있음: {e} → 기본 종목으로 대체")
+                stock_items = [("006800", {})]
+                
+                
+            self.logger.info(f"🔍 전체 종목 조건 체크 시작: {len(stock_items)}개 종목")
             
-            for stock_code, stock_info in self.stocks_config.items():
+            for stock_code, stock_info in stock_items:
                 if not stock_info.get("enabled", True):
                     continue
                 

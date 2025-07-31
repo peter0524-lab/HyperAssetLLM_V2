@@ -822,6 +822,10 @@ async def news_execute(request: Request):
 async def disclosure_health():
     return await gateway.forward_request("disclosure", "GET", "/health")
 
+@app.get("/api/disclosure/signal")
+async def disclosure_signal():
+    return await gateway.forward_request("disclosure", "GET", "/signal")
+
 @app.post("/api/disclosure/check-schedule")
 async def disclosure_check_schedule():
     return await gateway.forward_request("disclosure", "POST", "/check-schedule", use_cache=False)
@@ -859,6 +863,10 @@ async def chart_execute(request: Request):
 async def chart_analysis(stock_code: str):
     return await gateway.forward_request("chart", "GET", f"/analysis/{stock_code}")
 
+@app.get("/api/chart/signal")
+async def chart_signal():
+    return await gateway.forward_request("chart", "GET", "/signal")
+
 # === 리포트 서비스 라우팅 ===
 @app.get("/api/report/health")
 async def report_health():
@@ -884,6 +892,10 @@ async def report_latest():
 async def report_history():
     return await gateway.forward_request("report", "GET", "/history")
 
+@app.get("/api/report/signal")
+async def report_signal():
+    return await gateway.forward_request("report", "GET", "/signal")
+
 # === 플로우 분석 서비스 라우팅 ===
 @app.get("/api/flow/health")
 async def flow_health():
@@ -904,6 +916,10 @@ async def flow_execute(request: Request):
 @app.get("/api/flow/analysis/{stock_code}")
 async def flow_analysis_result(stock_code: str):
     return await gateway.forward_request("flow_analysis", "GET", f"/analysis/{stock_code}")
+
+@app.get("/api/flow/signal")
+async def flow_signal():
+    return await gateway.forward_request("flow_analysis", "GET", "/signal")
 
 
 # === 중앙 집중식 사용자 설정 관리 ===

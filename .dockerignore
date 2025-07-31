@@ -1,0 +1,36 @@
+# .dockerignore
+
+# Git 관련 파일 및 폴더
+.git
+.gitignore
+
+# Python 가상 환경
+.venv
+venv
+__pycache__
+
+# Node.js 관련 파일 (프론트엔드)
+node_modules
+npm-debug.log
+yarn-error.log
+package-lock.json
+bun.lockb
+
+# 로그 파일
+*.log
+logs/
+
+# 임시 파일 및 빌드 결과
+tmp/
+temp/
+dist/
+build/
+output/
+
+# IDE 설정 파일
+.vscode/
+.idea/
+
+# 기타 불필요한 파일
+*.DS_Store
+*.env

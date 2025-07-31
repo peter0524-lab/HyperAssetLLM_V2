@@ -860,6 +860,7 @@ async def execute_disclosure_analysis() -> Dict:
 async def execute_disclosure_analysis_forexcute() -> Dict:
     """공시 분석 실행"""
     global last_execution_time
+    global latest_signal_message # Add this line to access the global variable
     
     try:
         logger.info("🚀 공시 분석 실행 시작")
@@ -901,7 +902,8 @@ async def execute_disclosure_analysis_forexcute() -> Dict:
             "success": True,
             "processed_stocks": len(processed_stocks),
             "total_disclosures": total_disclosures,
-            "execution_time": last_execution_time.isoformat()
+            "execution_time": last_execution_time.isoformat(),
+            #"telegram_message": latest_signal_message.get("message") if latest_signal_message else None # Add this line
         }
         
         logger.info(f"✅ 공시 분석 완료: {len(processed_stocks)}개 종목")
@@ -909,7 +911,7 @@ async def execute_disclosure_analysis_forexcute() -> Dict:
         
     except Exception as e:
         logger.error(f"❌ 공시 분석 실행 실패: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": str(e), "telegram_message": None} # Add this line
 
 # FastAPI 엔드포인트
 @app.post("/set-user/{user_id}")

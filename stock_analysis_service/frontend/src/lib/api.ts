@@ -7,7 +7,7 @@ const USER_SERVICE_URL = 'http://localhost:8006'; // User Service 직접 호출
 // API Gateway용 클라이언트 (헬스체크만)
 const gatewayClient = axios.create({
   baseURL: API_GATEWAY_URL,
-  timeout: 10000, // 10초 타임아웃
+  timeout: 100000, // 10초 타임아웃
   headers: {
     'Content-Type': 'application/json',
   },
@@ -287,6 +287,7 @@ export const api = {
   async executeDisclosureAnalysis(): Promise<AnalysisResult> {
     try {
       const response = await gatewayClient.post('/api/disclosure/execute');
+      console.log('API Response Data:', response.data); // 이 줄을 추가합니다.
       return response.data;
     } catch (error: any) {
       console.error('공시 분석 에러:', error);
@@ -660,6 +661,61 @@ export const api = {
       throw error;
     }
   },
+
+  // 공시 신호 조회##################################################################
+  async getDisclosureSignal(): Promise<any> {
+    try {
+      const response = await gatewayClient.get('/api/disclosure/signal');
+      return response.data;
+    } catch (error: any) {
+      console.error('공시 신호 조회 에러:', error);
+      throw error;
+    }
+  },
+
+  // 뉴스 신호 조회
+  async getNewsSignal(): Promise<any> {
+    try {
+      const response = await gatewayClient.get('/api/news/signal');
+      return response.data;
+    } catch (error: any) {
+      console.error('뉴스 신호 조회 에러:', error);
+      throw error;
+    }
+  },
+
+  // 차트 신호 조회
+  async getChartSignal(): Promise<any> {
+    try {
+      const response = await gatewayClient.get('/api/chart/signal');
+      return response.data;
+    } catch (error: any) {
+      console.error('차트 신호 조회 에러:', error);
+      throw error;
+    }
+  },
+
+  // 수급 신호 조회
+  async getFlowSignal(): Promise<any> {
+    try {
+      const response = await gatewayClient.get('/api/flow/signal');
+      return response.data;
+    } catch (error: any) {
+      console.error('수급 신호 조회 에러:', error);
+      throw error;
+    }
+  },
+
+  // 리포트 신호 조회
+  async getReportSignal(): Promise<any> {
+    try {
+      const response = await gatewayClient.get('/api/report/signal');
+      return response.data;
+    } catch (error: any) {
+      console.error('리포트 신호 조회 에러:', error);
+      throw error;
+    }
+  }
 };
 
 // 사용자 ID 관리 헬퍼 함수들

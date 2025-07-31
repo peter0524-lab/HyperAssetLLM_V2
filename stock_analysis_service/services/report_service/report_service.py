@@ -563,6 +563,7 @@ class ReportService:
                 stock_code, comprehensive_report_data["keywords"]
             )
             self.logger.info(f"주간 보고서 처리 완료: {stock_code}")
+            return report_pdf
 
 
         except Exception as e:

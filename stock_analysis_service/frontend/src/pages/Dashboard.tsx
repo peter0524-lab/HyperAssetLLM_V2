@@ -45,6 +45,11 @@ const Dashboard = () => {
     report: []
   });
   const [selectedAnalysisTab, setSelectedAnalysisTab] = useState<'news' | 'chart' | 'disclosure' | 'flow' | 'report'>('news');
+  const [showDisclosureSignalButton, setShowDisclosureSignalButton] = useState(false);
+  const [showNewsSignalButton, setShowNewsSignalButton] = useState(false);
+  const [showChartSignalButton, setShowChartSignalButton] = useState(false);
+  const [showFlowSignalButton, setShowFlowSignalButton] = useState(false);
+  const [showReportSignalButton, setShowReportSignalButton] = useState(false);
 
   useEffect(() => {
     // 사용자 ID 확인
@@ -95,9 +100,11 @@ const Dashboard = () => {
         news: data.data || []
       }));
       setSelectedAnalysisTab('news');
+      setShowNewsSignalButton(true);
       toast.success("📰 뉴스 분석이 완료되었습니다!");
     },
     onError: (error) => {
+      setShowNewsSignalButton(true);
       toast.error("❌ 뉴스 분석 실행 중 오류가 발생했습니다.");
     }
   });
@@ -110,9 +117,11 @@ const Dashboard = () => {
         disclosure: data.data || []
       }));
       setSelectedAnalysisTab('disclosure');
+      setShowDisclosureSignalButton(true); // 분석 완료 시 버튼 표시
       toast.success("📋 공시 분석이 완료되었습니다!");
     },
     onError: (error) => {
+      setShowDisclosureSignalButton(true); // 에러 시에도 버튼 표시
       toast.error("❌ 공시 분석 실행 중 오류가 발생했습니다.");
     }
   });
@@ -125,9 +134,11 @@ const Dashboard = () => {
         chart: data.data || []
       }));
       setSelectedAnalysisTab('chart');
+      setShowChartSignalButton(true);
       toast.success("📈 차트 분석이 완료되었습니다!");
     },
     onError: (error) => {
+      setShowChartSignalButton(true);
       toast.error("❌ 차트 분석 실행 중 오류가 발생했습니다.");
     }
   });
@@ -140,9 +151,11 @@ const Dashboard = () => {
         report: data.data || []
       }));
       setSelectedAnalysisTab('report');
+      setShowReportSignalButton(true);
       toast.success("📊 리포트 분석이 완료되었습니다!");
     },
     onError: (error) => {
+      setShowReportSignalButton(true);
       toast.error("❌ 리포트 분석 실행 중 오류가 발생했습니다.");
     }
   });
@@ -155,9 +168,11 @@ const Dashboard = () => {
         flow: data.data || []
       }));
       setSelectedAnalysisTab('flow');
+      setShowFlowSignalButton(true);
       toast.success("💰 수급 분석이 완료되었습니다!");
     },
     onError: (error) => {
+      setShowFlowSignalButton(true);
       toast.error("❌ 수급 분석 실행 중 오류가 발생했습니다.");
     }
   });
@@ -447,6 +462,11 @@ const Dashboard = () => {
                       selectedTab={selectedAnalysisTab}
                       onTabChange={setSelectedAnalysisTab}
                       isLoading={executeNewsMutation.isPending || executeChartMutation.isPending || executeDisclosureMutation.isPending || executeFlowMutation.isPending || executeReportMutation.isPending}
+                      showDisclosureSignalButton={showDisclosureSignalButton}
+                      showNewsSignalButton={showNewsSignalButton}
+                      showChartSignalButton={showChartSignalButton}
+                      showFlowSignalButton={showFlowSignalButton}
+                      showReportSignalButton={showReportSignalButton}
                     />
                   </div>
                 </CardContent>
@@ -533,9 +553,24 @@ interface AnalysisResultsProps {
   selectedTab: 'news' | 'chart' | 'disclosure' | 'flow' | 'report';
   onTabChange: (tab: 'news' | 'chart' | 'disclosure' | 'flow' | 'report') => void;
   isLoading: boolean;
+  showDisclosureSignalButton: boolean;
+  showNewsSignalButton: boolean;
+  showChartSignalButton: boolean;
+  showFlowSignalButton: boolean;
+  showReportSignalButton: boolean;
 }
 
-const AnalysisResults = ({ results, selectedTab, onTabChange, isLoading }: AnalysisResultsProps) => {
+const AnalysisResults = ({ 
+  results, 
+  selectedTab, 
+  onTabChange, 
+  isLoading, 
+  showDisclosureSignalButton,
+  showNewsSignalButton,
+  showChartSignalButton,
+  showFlowSignalButton,
+  showReportSignalButton
+}: AnalysisResultsProps) => {
   
   const tabs = [
     { id: 'news', label: '뉴스 분석', icon: '📰' },
@@ -567,148 +602,278 @@ const AnalysisResults = ({ results, selectedTab, onTabChange, isLoading }: Analy
     }
   };
 
-  const renderNewsResults = () => (
-    <div className="space-y-4">
-      {results.news.length > 0 ? (
-        results.news.map((item: any, index: number) => (
-          <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start mb-2">
-              <h4 className="font-medium text-gray-900">{item.title}</h4>
-              <div className="flex gap-2">
+  const renderNewsResults = () => {
+    const getSignalMutation = useMutation({
+      mutationFn: api.getNewsSignal,
+      onSuccess: (data) => {
+        toast.info(data.message || "신호 없음");
+      },
+      onError: (error) => {
+        toast.error("신호 조회 중 오류가 발생했습니다.");
+      },
+    });
+
+    return (
+      <div className="space-y-4">
+        {results.news.length > 0 ? (
+          results.news.map((item: any, index: number) => (
+            <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-start mb-2">
+                <h4 className="font-medium text-gray-900">{item.title}</h4>
+                <div className="flex gap-2">
+                  <Badge className={getSentimentColor(item.sentiment)}>
+                    {item.sentiment === 'positive' ? '긍정' : '부정'}
+                  </Badge>
+                  <Badge className={getImpactColor(item.impact_score)}>
+                    {item.impact_score > 0.7 ? '높음' : item.impact_score > 0.4 ? '보통' : '낮음'}
+                  </Badge>
+                </div>
+              </div>
+              <p className="text-gray-600 text-sm mb-2">{item.summary}</p>
+              <p className="text-xs text-gray-500">{item.created_at}</p>
+            </div>
+          ))
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <p>뉴스 분석 결과가 없습니다.</p>
+            {showNewsSignalButton ? (
+              <Button 
+                onClick={() => getSignalMutation.mutate()}
+                disabled={getSignalMutation.isPending}
+                className="mt-4"
+              >
+                {getSignalMutation.isPending ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> 확인 중...</>
+                ) : (
+                  '분석결과 확인하기'
+                )}
+              </Button>
+            ) : (
+              <p className="text-sm mt-2">왼쪽의 "뉴스 즉시 실행해보기" 버튼을 클릭해보세요.</p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderChartResults = () => {
+    const getSignalMutation = useMutation({
+      mutationFn: api.getChartSignal,
+      onSuccess: (data) => {
+        toast.info(data.message || "신호 없음");
+      },
+      onError: (error) => {
+        toast.error("신호 조회 중 오류가 발생했습니다.");
+      },
+    });
+
+    return (
+      <div className="space-y-4">
+        {results.chart.length > 0 ? (
+          results.chart.map((item: any, index: number) => (
+            <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="font-medium text-gray-900">차트 분석</h4>
+                <Badge variant="outline">{item.date}</Badge>
+              </div>
+              <div className="space-y-2 text-sm">
+                {item.golden_cross && <p className="text-green-600">✓ 골든크로스</p>}
+                {item.dead_cross && <p className="text-red-600">✗ 데드크로스</p>}
+                {item.bollinger_touch && <p className="text-blue-600">📊 볼린저 밴드 터치</p>}
+                {item.rsi_condition && <p className="text-orange-600">📈 RSI 조건</p>}
+                {item.volume_surge && <p className="text-purple-600">📊 거래량 급증</p>}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">종가: {item.close_price?.toLocaleString()}원</p>
+            </div>
+          ))
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <p>차트 분석 결과가 없습니다.</p>
+            {showChartSignalButton ? (
+              <Button 
+                onClick={() => getSignalMutation.mutate()}
+                disabled={getSignalMutation.isPending}
+                className="mt-4"
+              >
+                {getSignalMutation.isPending ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> 확인 중...</>
+                ) : (
+                  '분석결과 확인하기'
+                )}
+              </Button>
+            ) : (
+              <p className="text-sm mt-2">왼쪽의 "차트 즉시 실행해보기" 버튼을 클릭해보세요.</p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderDisclosureResults = () => {
+    const getSignalMutation = useMutation({
+      mutationFn: api.getDisclosureSignal,
+      onSuccess: (data) => {
+        toast.info(data.message || "신호 없음");
+      },
+      onError: (error) => {
+        toast.error("신호 조회 중 오류가 발생했습니다.");
+      },
+    });
+
+    return (
+      <div className="space-y-4">
+        {results.disclosure.length > 0 ? (
+          results.disclosure.map((item: any, index: number) => (
+            <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-start mb-2">
+                <h4 className="font-medium text-gray-900">{item.report_nm}</h4>
                 <Badge className={getSentimentColor(item.sentiment)}>
                   {item.sentiment === 'positive' ? '긍정' : '부정'}
                 </Badge>
-                <Badge className={getImpactColor(item.impact_score)}>
-                  {item.impact_score > 0.7 ? '높음' : item.impact_score > 0.4 ? '보통' : '낮음'}
-                </Badge>
               </div>
+              <p className="text-gray-600 text-sm mb-2">{item.summary}</p>
+              <p className="text-xs text-gray-500">{item.rcept_dt}</p>
             </div>
-            <p className="text-gray-600 text-sm mb-2">{item.summary}</p>
-            <p className="text-xs text-gray-500">{item.created_at}</p>
-          </div>
-        ))
-      ) : (
-        <div className="text-center py-8 text-gray-500">
-          <p>뉴스 분석 결과가 없습니다.</p>
-          <p className="text-sm mt-2">왼쪽의 "뉴스 즉시 실행해보기" 버튼을 클릭해보세요.</p>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderChartResults = () => (
-    <div className="space-y-4">
-      {results.chart.length > 0 ? (
-        results.chart.map((item: any, index: number) => (
-          <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-center mb-2">
-              <h4 className="font-medium text-gray-900">차트 분석</h4>
-              <Badge variant="outline">{item.date}</Badge>
-            </div>
-            <div className="space-y-2 text-sm">
-              {item.golden_cross && <p className="text-green-600">✓ 골든크로스</p>}
-              {item.dead_cross && <p className="text-red-600">✗ 데드크로스</p>}
-              {item.bollinger_touch && <p className="text-blue-600">📊 볼린저 밴드 터치</p>}
-              {item.rsi_condition && <p className="text-orange-600">📈 RSI 조건</p>}
-              {item.volume_surge && <p className="text-purple-600">📊 거래량 급증</p>}
-            </div>
-            <p className="text-xs text-gray-500 mt-2">종가: {item.close_price?.toLocaleString()}원</p>
-          </div>
-        ))
-      ) : (
-        <div className="text-center py-8 text-gray-500">
-          <p>차트 분석 결과가 없습니다.</p>
-          <p className="text-sm mt-2">왼쪽의 "차트 즉시 실행해보기" 버튼을 클릭해보세요.</p>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderDisclosureResults = () => (
-    <div className="space-y-4">
-      {results.disclosure.length > 0 ? (
-        results.disclosure.map((item: any, index: number) => (
-          <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start mb-2">
-              <h4 className="font-medium text-gray-900">{item.report_nm}</h4>
-              <Badge className={getSentimentColor(item.sentiment)}>
-                {item.sentiment === 'positive' ? '긍정' : '부정'}
-              </Badge>
-            </div>
-            <p className="text-gray-600 text-sm mb-2">{item.summary}</p>
-            <p className="text-xs text-gray-500">{item.rcept_dt}</p>
-          </div>
-        ))
-      ) : (
-        <div className="text-center py-8 text-gray-500">
-          <p>공시 분석 결과가 없습니다.</p>
-          <p className="text-sm mt-2">왼쪽의 "공시 즉시 실행해보기" 버튼을 클릭해보세요.</p>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderFlowResults = () => (
-    <div className="space-y-4">
-      {results.flow.length > 0 ? (
-        results.flow.map((item: any, index: number) => (
-          <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-center mb-2">
-              <h4 className="font-medium text-gray-900">수급 분석</h4>
-              <Badge className={item.trade_date ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}>
-                {item.trade_date || '실시간'}
-              </Badge>
-            </div>
-            <div className="space-y-1 text-sm">
-              <p className="text-gray-600">기관: <span className={`font-medium ${item.inst_net > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {item.inst_net?.toLocaleString()}주
-              </span></p>
-              <p className="text-gray-600">외국인: <span className={`font-medium ${item.foreign_net > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {item.foreign_net?.toLocaleString()}주
-              </span></p>
-              <p className="text-gray-600">개인: <span className={`font-medium ${item.individ_net > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {item.individ_net?.toLocaleString()}주
-              </span></p>
-            </div>
-          </div>
-        ))
-      ) : (
-        <div className="text-center py-8 text-gray-500">
-          <p>수급 분석 결과가 없습니다.</p>
-          <p className="text-sm mt-2">왼쪽의 "수급 즉시 실행해보기" 버튼을 클릭해보세요.</p>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderReportResults = () => (
-    <div className="space-y-4">
-      {results.report.length > 0 ? (
-        results.report.map((item: any, index: number) => (
-          <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start mb-2">
-              <h4 className="font-medium text-gray-900">{item.report_title}</h4>
-              <div className="flex gap-2">
-                <Badge className={item.recommendation === '매수' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
-                  {item.recommendation}
-                </Badge>
-                {item.target_price && (
-                  <Badge variant="outline">목표가: {item.target_price?.toLocaleString()}원</Badge>
+          ))
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <p>공시 분석 결과가 없습니다.</p>
+            {showDisclosureSignalButton ? (
+              <Button 
+                onClick={() => getSignalMutation.mutate()}
+                disabled={getSignalMutation.isPending}
+                className="mt-4"
+              >
+                {getSignalMutation.isPending ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> 확인 중...</>
+                ) : (
+                  '분석결과 확인하기'
                 )}
+              </Button>
+            ) : (
+              <p className="text-sm mt-2">왼쪽의 "공시 즉시 실행해보기" 버튼을 클릭해보세요.</p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderFlowResults = () => {
+    const getSignalMutation = useMutation({
+      mutationFn: api.getFlowSignal,
+      onSuccess: (data) => {
+        toast.info(data.message || "신호 없음");
+      },
+      onError: (error) => {
+        toast.error("신호 조회 중 오류가 발생했습니다.");
+      },
+    });
+
+    return (
+      <div className="space-y-4">
+        {results.flow.length > 0 ? (
+          results.flow.map((item: any, index: number) => (
+            <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="font-medium text-gray-900">수급 분석</h4>
+                <Badge className={item.trade_date ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}>
+                  {item.trade_date || '실시간'}
+                </Badge>
+              </div>
+              <div className="space-y-1 text-sm">
+                <p className="text-gray-600">기관: <span className={`font-medium ${item.inst_net > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {item.inst_net?.toLocaleString()}주
+                </span></p>
+                <p className="text-gray-600">외국인: <span className={`font-medium ${item.foreign_net > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {item.foreign_net?.toLocaleString()}주
+                </span></p>
+                <p className="text-gray-600">개인: <span className={`font-medium ${item.individ_net > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {item.individ_net?.toLocaleString()}주
+                </span></p>
               </div>
             </div>
-            <p className="text-gray-600 text-sm mb-2">{item.summary}</p>
-            <p className="text-xs text-gray-500">{item.report_date}</p>
+          ))
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <p>수급 분석 결과가 없습니다.</p>
+            {showFlowSignalButton ? (
+              <Button 
+                onClick={() => getSignalMutation.mutate()}
+                disabled={getSignalMutation.isPending}
+                className="mt-4"
+              >
+                {getSignalMutation.isPending ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> 확인 중...</>
+                ) : (
+                  '분석결과 확인하기'
+                )}
+              </Button>
+            ) : (
+              <p className="text-sm mt-2">왼쪽의 "수급 즉시 실행해보기" 버튼을 클릭해보세요.</p>
+            )}
           </div>
-        ))
-      ) : (
-        <div className="text-center py-8 text-gray-500">
-          <p>리포트 분석 결과가 없습니다.</p>
-          <p className="text-sm mt-2">왼쪽의 "리포트 즉시 실행해보기" 버튼을 클릭해보세요.</p>
-        </div>
-      )}
-    </div>
-  );
+        )}
+      </div>
+    );
+  };
+
+  const renderReportResults = () => {
+    const getSignalMutation = useMutation({
+      mutationFn: api.getReportSignal,
+      onSuccess: (data) => {
+        toast.info(data.message || "신호 없음");
+      },
+      onError: (error) => {
+        toast.error("신호 조회 중 오류가 발생했습니다.");
+      },
+    });
+
+    return (
+      <div className="space-y-4">
+        {results.report.length > 0 ? (
+          results.report.map((item: any, index: number) => (
+            <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-start mb-2">
+                <h4 className="font-medium text-gray-900">{item.report_title}</h4>
+                <div className="flex gap-2">
+                  <Badge className={item.recommendation === '매수' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                    {item.recommendation}
+                  </Badge>
+                  {item.target_price && (
+                    <Badge variant="outline">목표가: {item.target_price?.toLocaleString()}원</Badge>
+                  )}
+                </div>
+              </div>
+              <p className="text-gray-600 text-sm mb-2">{item.summary}</p>
+              <p className="text-xs text-gray-500">{item.report_date}</p>
+            </div>
+          ))
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <p>리포트 분석 결과가 없습니다.</p>
+            {showReportSignalButton ? (
+              <Button 
+                onClick={() => getSignalMutation.mutate()}
+                disabled={getSignalMutation.isPending}
+                className="mt-4"
+              >
+                {getSignalMutation.isPending ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> 확인 중...</>
+                ) : (
+                  '분석결과 확인하기'
+                )}
+              </Button>
+            ) : (
+              <p className="text-sm mt-2">왼쪽의 "리포트 즉시 실행해보기" 버튼을 클릭해보세요.</p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   if (isLoading) {
     return (
