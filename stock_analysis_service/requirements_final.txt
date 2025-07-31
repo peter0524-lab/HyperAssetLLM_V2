@@ -87,7 +87,6 @@ python-telegram-bot==22.3
 # WebSocket Support
 # ============================================================================
 websocket-client==1.8.0
-websockets==13.0
 
 # ============================================================================
 # Scheduling
@@ -101,7 +100,7 @@ APScheduler==3.11.0
 structlog==25.4.0
 prometheus-client==0.22.1
 colorama==0.4.6
-rich==14.1.0
+rich<14,>=10.14.0
 loguru==0.7.3
 psutil==6.1.1
 
@@ -168,7 +167,7 @@ mypy==1.17.0
 # Other Required Dependencies
 # ============================================================================
 tqdm==4.67.1
-packaging==25.0
+packaging==24.0
 filelock==3.18.0
 huggingface-hub==0.34.1
 safetensors==0.5.3

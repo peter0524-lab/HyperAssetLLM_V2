@@ -746,6 +746,219 @@ class FlowAnalysisService:
             self.logger.error(f"수급 분석 서비스 실행 실패: {e}")
             raise
 
+    async def get_database_connection(self):
+        """데이터베이스 연결 반환"""
+        try:
+            # MySQL 클라이언트의 연결 풀에서 연결 가져오기
+            return self.mysql_client.pool.get_connection(timeout=20)
+        except Exception as e:
+            self.logger.error(f"❌ 데이터베이스 연결 실패: {e}")
+            return None
+
+    async def analyze_flow_data_by_period(self, stock_codes: List[str] = None) -> Dict:
+        """기간별 수급 데이터 분석 (3일, 7일, 2주, 1달)"""
+        analysis_id = f"analysis_{int(time.time() * 1000)}"
+        start_time = time.time()
+        
+        self.logger.info(f"[Flow Analysis][{analysis_id}] 수급 분석 시작")
+        self.logger.info(f"[Flow Analysis][{analysis_id}] 초기화 단계:")
+        
+        try:
+            # 1. 종목 코드 로드
+            if not stock_codes:
+                self.logger.info(f"[Flow Analysis][{analysis_id}] 종목 설정 파일 로드 중...")
+                try:
+                    with open(project_root / "config" / "stocks.json", "r", encoding="utf-8") as f:
+                        stocks_config = json.load(f)
+                        stock_codes = [stock["code"] for stock in stocks_config.get("stocks", [])]
+                    self.logger.info(f"[Flow Analysis][{analysis_id}] 종목 설정 로드 완료: {len(stock_codes)}개")
+                except Exception as e:
+                    self.logger.warning(f"[Flow Analysis][{analysis_id}] 종목 설정 로드 실패:")
+                    self.logger.warning(f"  - 에러: {str(e)}")
+                    self.logger.warning(f"  - 기본 종목으로 대체")
+                    stock_codes = ["005930", "000660", "006800"]
+
+            if not stock_codes:
+                self.logger.error(f"[Flow Analysis][{analysis_id}] 치명적 오류: 분석할 종목이 없음")
+                return {"success": False, "error": "분석할 종목이 없습니다.", "analysis_id": analysis_id}
+
+            # 2. 데이터베이스 연결 확인
+            self.logger.info(f"[Flow Analysis][{analysis_id}] 데이터베이스 연결 확인...")
+            if not self.mysql_client.pool:
+                self.logger.error(f"[Flow Analysis][{analysis_id}] 치명적 오류: DB 연결 실패")
+                return {"success": False, "error": "데이터베이스 연결 실패", "analysis_id": analysis_id}
+
+            # 3. 분석 실행
+            analysis_results = []
+            periods = [
+                {"name": "3일", "days": 3},
+                {"name": "7일", "days": 7},
+                {"name": "2주", "days": 14},
+                {"name": "1달", "days": 30}
+            ]
+            
+            self.logger.info(f"[Flow Analysis][{analysis_id}] 분석 설정:")
+            self.logger.info(f"  - 대상 종목 수: {len(stock_codes)}개")
+            self.logger.info(f"  - 분석 기간: {', '.join(p['name'] for p in periods)}")
+            
+            for idx, stock_code in enumerate(stock_codes, 1):
+                stock_start_time = time.time()
+                self.logger.info(f"[Flow Analysis][{analysis_id}] 종목 분석 {idx}/{len(stock_codes)}:")
+                self.logger.info(f"  - 종목코드: {stock_code}")
+                
+                try:
+                    stock_analysis = {"stock_code": stock_code, "periods": {}}
+                    
+                    for period in periods:
+                        period_start_time = time.time()
+                        self.logger.debug(f"[Flow Analysis][{analysis_id}] {stock_code} {period['name']} 분석 중...")
+                        
+                        # 수급 데이터 조회 쿼리
+                        query = """
+                        SELECT 
+                            AVG(inst_net) as avg_inst_net,
+                            AVG(foreign_net) as avg_foreign_net,
+                            AVG(individ_net) as avg_individ_net,
+                            SUM(inst_net) as total_inst_net,
+                            SUM(foreign_net) as total_foreign_net,
+                            SUM(individ_net) as total_individ_net,
+                            COUNT(*) as data_count,
+                            MAX(trade_date) as latest_date,
+                            MIN(trade_date) as earliest_date
+                        FROM eod_flows 
+                        WHERE ticker = %s 
+                        AND trade_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+                        """
+                        
+                        result = await self.mysql_client.fetch_one_async(query, (stock_code, period["days"]))
+                        period_time = time.time() - period_start_time
+                        
+                        if result:
+                            self.logger.debug(f"[Flow Analysis][{analysis_id}] {stock_code} {period['name']} 데이터:")
+                            self.logger.debug(f"  - 데이터 건수: {result['data_count']}개")
+                            self.logger.debug(f"  - 조회 시간: {period_time:.2f}초")
+                            
+                            # 데이터 가공
+                            period_data = {
+                                "avg_inst_net": int(result["avg_inst_net"]) if result["avg_inst_net"] else 0,
+                                "avg_foreign_net": int(result["avg_foreign_net"]) if result["avg_foreign_net"] else 0,
+                                "avg_individ_net": int(result["avg_individ_net"]) if result["avg_individ_net"] else 0,
+                                "total_inst_net": int(result["total_inst_net"]) if result["total_inst_net"] else 0,
+                                "total_foreign_net": int(result["total_foreign_net"]) if result["total_foreign_net"] else 0,
+                                "total_individ_net": int(result["total_individ_net"]) if result["total_individ_net"] else 0,
+                                "data_count": result["data_count"],
+                                "latest_date": result["latest_date"].isoformat() if result["latest_date"] else None,
+                                "earliest_date": result["earliest_date"].isoformat() if result["earliest_date"] else None
+                            }
+                            
+                            # 수급 방향 및 강도 분석
+                            period_data.update({
+                                "inst_direction": "매수" if period_data["avg_inst_net"] > 0 else "매도",
+                                "foreign_direction": "매수" if period_data["avg_foreign_net"] > 0 else "매도",
+                                "individ_direction": "매수" if period_data["avg_individ_net"] > 0 else "매도",
+                                "inst_strength": "강" if abs(period_data["avg_inst_net"]) > 100000 else "약",
+                                "foreign_strength": "강" if abs(period_data["avg_foreign_net"]) > 100000 else "약",
+                                "individ_strength": "강" if abs(period_data["avg_individ_net"]) > 100000 else "약"
+                            })
+                            
+                            stock_analysis["periods"][period["name"]] = period_data
+                            
+                            # 주요 변동 로깅
+                            if period_data["inst_strength"] == "강" or period_data["foreign_strength"] == "강":
+                                self.logger.info(f"[Flow Analysis][{analysis_id}] {stock_code} {period['name']} 주요 변동:")
+                                self.logger.info(f"  - 기관: {period_data['inst_direction']}({period_data['inst_strength']}, {period_data['avg_inst_net']:,}주)")
+                                self.logger.info(f"  - 외국인: {period_data['foreign_direction']}({period_data['foreign_strength']}, {period_data['avg_foreign_net']:,}주)")
+                        else:
+                            self.logger.warning(f"[Flow Analysis][{analysis_id}] {stock_code} {period['name']} 데이터 없음")
+                            stock_analysis["periods"][period["name"]] = {"error": f"{period['name']} 데이터 없음"}
+                    
+                    analysis_results.append(stock_analysis)
+                    stock_time = time.time() - stock_start_time
+                    self.logger.info(f"[Flow Analysis][{analysis_id}] {stock_code} 분석 완료 ({stock_time:.2f}초)")
+                    
+                except Exception as e:
+                    self.logger.error(f"[Flow Analysis][{analysis_id}] {stock_code} 분석 실패:")
+                    self.logger.error(f"  - 에러 타입: {type(e).__name__}")
+                    self.logger.error(f"  - 에러 메시지: {str(e)}")
+                    analysis_results.append({"stock_code": stock_code, "error": str(e)})
+                    continue
+
+            # 4. 결과 정리
+            analyzed_count = len([r for r in analysis_results if "error" not in r])
+            total_time = time.time() - start_time
+            
+            self.logger.info(f"[Flow Analysis][{analysis_id}] 분석 완료:")
+            self.logger.info(f"  - 성공: {analyzed_count}/{len(stock_codes)} 종목")
+            self.logger.info(f"  - 총 소요시간: {total_time:.2f}초")
+            self.logger.info(f"  - 평균 처리시간: {(total_time/len(stock_codes)):.2f}초/종목")
+            
+            # 5. 텔레그램 메시지 생성
+            telegram_message = self._build_flow_analysis_telegram_message(analysis_results)
+            
+            return {
+                "success": True,
+                "data": analysis_results,
+                "telegram_message": telegram_message,
+                "analysis_id": analysis_id,
+                "analysis_time": datetime.now().isoformat(),
+                "analyzed_stocks": analyzed_count,
+                "execution_time": total_time
+            }
+            
+        except Exception as e:
+            total_time = time.time() - start_time
+            self.logger.error(f"[Flow Analysis][{analysis_id}] 치명적 오류 발생:")
+            self.logger.error(f"  - 에러 타입: {type(e).__name__}")
+            self.logger.error(f"  - 에러 메시지: {str(e)}")
+            self.logger.error(f"  - 실행 시간: {total_time:.2f}초")
+            self.logger.error("  - 스택 트레이스:")
+            import traceback
+            for line in traceback.format_exc().split('\n'):
+                if line.strip():
+                    self.logger.error(f"    {line}")
+            
+            return {
+                "success": False,
+                "error": str(e),
+                "analysis_id": analysis_id,
+                "execution_time": total_time
+            }
+
+    def _build_flow_analysis_telegram_message(self, analysis_results: List[Dict]) -> str:
+        """수급 분석 결과를 텔레그램 메시지로 변환"""
+        try:
+            message = "💰 <b>수급 분석 결과</b>\n\n"
+            
+            for result in analysis_results:
+                if "error" in result:
+                    message += f"❌ <b>{result['stock_code']}</b>: {result['error']}\n\n"
+                    continue
+                
+                message += f"📊 <b>{result['stock_code']}</b>\n"
+                
+                for period_name, period_data in result["periods"].items():
+                    if "error" in period_data:
+                        message += f"  • <b>{period_name}</b>: {period_data['error']}\n"
+                        continue
+                    
+                    # 방향에 따른 이모지 선택
+                    inst_emoji = "🔴" if period_data['inst_direction'] == "매도" else "🟢"
+                    foreign_emoji = "🔴" if period_data['foreign_direction'] == "매도" else "🟢"
+                    individ_emoji = "🔴" if period_data['individ_direction'] == "매도" else "🟢"
+                    
+                    message += f"  • <b>{period_name} 평균</b>:\n"
+                    message += f"    {inst_emoji} <b>기관</b>: {period_data['inst_direction']} ({period_data['avg_inst_net']:,}주)\n"
+                    message += f"    {foreign_emoji} <b>외국인</b>: {period_data['foreign_direction']} ({period_data['avg_foreign_net']:,}주)\n"
+                    message += f"    {individ_emoji} <b>개인</b>: {period_data['individ_direction']} ({period_data['avg_individ_net']:,}주)\n"
+                
+                message += "\n"
+            
+            message += f"⏰ <b>분석 시간</b>: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            return message
+            
+        except Exception as e:
+            logger.error(f"❌ 텔레그램 메시지 생성 실패: {e}")
+            return f"💰 <b>수급 분석 완료</b>\n\n⏰ <b>분석 시간</b>: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
 # === FastAPI 엔드포인트 ===
 
@@ -1003,24 +1216,66 @@ async def get_latest_signal():
 
 @app.post("/execute")
 async def execute_flow_analysis_endpoint(request: Request):
-    """플로우 분석 실행 - 사용자별 동적 처리"""
+    """플로우 분석 실행 - 기간별 수급 데이터 분석"""
+    start_time = time.time()
+    request_id = f"req_{int(start_time * 1000)}"
+    
+    logger.info(f"[Flow Analysis][{request_id}] API 호출 시작")
+    logger.info(f"[Flow Analysis][{request_id}] 요청 정보:")
+    logger.info(f"  - 엔드포인트: /execute")
+    logger.info(f"  - 메소드: POST")
+    logger.info(f"  - 클라이언트 IP: {request.client.host}")
+    logger.info(f"  - User-Agent: {request.headers.get('user-agent', 'Unknown')}")
+    
     try:
         # Header에서 user_id 추출 (문자열로 처리)
         user_id = request.headers.get("X-User-ID", "1")
+        logger.info(f"[Flow Analysis][{request_id}] 사용자 ID: {user_id}")
         
         # 서비스 인스턴스의 user_id 동적 업데이트
         service = get_flow_service()
         if service.current_user_id != user_id:
             await service.set_user_id(user_id)
-            logger.info(f"🔄 사용자 컨텍스트 변경: {user_id}")
+            logger.info(f"[Flow Analysis][{request_id}] 사용자 컨텍스트 변경: {user_id}")
         
-        # EOD 처리 실행
-        result = await execute_eod_processing()
+        # 기간별 수급 분석 실행
+        logger.info(f"[Flow Analysis][{request_id}] 기간별 수급 분석 시작")
+        result = await service.analyze_flow_data_by_period()
+        
+        # 응답 로깅
+        execution_time = time.time() - start_time
+        success = result.get('success', False)
+        analyzed_stocks = result.get('analyzed_stocks', 0)
+        
+        logger.info(f"[Flow Analysis][{request_id}] 분석 완료:")
+        logger.info(f"  - 성공 여부: {'성공' if success else '실패'}")
+        logger.info(f"  - 분석된 종목 수: {analyzed_stocks}")
+        logger.info(f"  - 실행 시간: {execution_time:.2f}초")
+        
+        if not success:
+            logger.warning(f"[Flow Analysis][{request_id}] 분석 실패 상세:")
+            logger.warning(f"  - 에러 메시지: {result.get('error', 'Unknown error')}")
+        
         return result
         
     except Exception as e:
-        logger.error(f"❌ 플로우 분석 실행 실패: {e}")
-        return {"success": False, "error": str(e)}
+        execution_time = time.time() - start_time
+        logger.error(f"[Flow Analysis][{request_id}] 치명적 오류 발생:")
+        logger.error(f"  - 에러 타입: {type(e).__name__}")
+        logger.error(f"  - 에러 메시지: {str(e)}")
+        logger.error(f"  - 실행 시간: {execution_time:.2f}초")
+        logger.error(f"  - 스택 트레이스:")
+        import traceback
+        for line in traceback.format_exc().split('\n'):
+            if line.strip():
+                logger.error(f"    {line}")
+        
+        return {
+            "success": False,
+            "error": str(e),
+            "request_id": request_id,
+            "execution_time": execution_time
+        }
 
 @app.post("/check-schedule")
 async def check_schedule():

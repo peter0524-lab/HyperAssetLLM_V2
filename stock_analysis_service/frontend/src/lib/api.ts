@@ -325,14 +325,80 @@ export const api = {
   },
 
   async executeFlowAnalysis(): Promise<AnalysisResult> {
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("[Flow Analysis] API 호출 시작");
+    console.log("🔗 엔드포인트: /api/flow/execute");
+    console.log("📤 요청 방식: POST");
+    
+    const startTime = performance.now();
     try {
       const response = await gatewayClient.post('/api/flow/execute');
-      return response.data;
-    } catch (error: any) {
-      console.error('수급 분석 에러:', error);
-      if (error.response?.status === 500) {
-        return { status: 'completed', message: '수급 분석 완료 (데모)', timestamp: new Date().toISOString() };
+      const endTime = performance.now();
+      
+      // 응답 데이터 구조 검증 및 로깅
+      const responseData = {
+        hasData: !!response.data,
+        dataStructure: {
+          status: !!response.data?.status,
+          message: !!response.data?.message,
+          timestamp: !!response.data?.timestamp,
+          hasTelegramMessage: !!response.data?.telegram_message,
+          hasFlowData: !!response.data?.data,
+          flowDataLength: response.data?.data?.length
+        },
+        timing: {
+          totalTime: `${(endTime - startTime).toFixed(0)}ms`,
+          apiLatency: response.headers['x-response-time'] || 'N/A'
+        }
+      };
+      
+      console.log("[Flow Analysis] API 호출 성공 ✅");
+      console.log("📊 응답 데이터 구조:", responseData);
+      
+      if (response.data?.data) {
+        console.log("[Flow Analysis] 수급 데이터 샘플:", {
+          firstItem: response.data.data[0],
+          totalItems: response.data.data.length
+        });
       }
+      
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      return response.data;
+      
+    } catch (error: any) {
+      const endTime = performance.now();
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.error("[Flow Analysis] API 호출 실패 ❌");
+      console.error("🔍 에러 상세 정보:", {
+        name: error.name,
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        endpoint: '/api/flow/execute',
+        timing: `${(endTime - startTime).toFixed(0)}ms`,
+        responseData: error.response?.data
+      });
+
+      // 특정 에러 케이스 처리
+      if (error.response?.status === 500) {
+        console.log("[Flow Analysis] 서버 에러 발생 - 데모 데이터 반환");
+        return { 
+          status: 'completed', 
+          message: '수급 분석 완료 (데모)', 
+          timestamp: new Date().toISOString(),
+          data: []
+        };
+      }
+
+      if (error.code === 'ECONNREFUSED') {
+        console.error("[Flow Analysis] 서버 연결 실패 - 서비스가 실행 중인지 확인 필요");
+      }
+
+      if (error.code === 'ETIMEDOUT') {
+        console.error("[Flow Analysis] 요청 시간 초과 - 서버 부하 또는 네트워크 문제 확인 필요");
+      }
+
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       throw error;
     }
   },

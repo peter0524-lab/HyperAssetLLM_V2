@@ -217,19 +217,45 @@ const Dashboard = () => {
   const executeFlowMutation = useMutation({ 
     mutationFn: api.executeFlowAnalysis,
     onSuccess: (data) => {
+      // 응답 데이터 구조 로깅
+      console.log("[Flow Analysis] Response structure:", {
+        hasData: !!data?.data,
+        dataLength: data?.data?.length,
+        hasTelegramMessage: !!data?.data?.telegram_message,
+        periods: Object.keys(data?.data?.[0]?.periods || {})
+      });
+
+      // 데이터 설정
       setAnalysisResults(prev => ({
         ...prev,
         flow: data.data || []
       }));
       setSelectedAnalysisTab('flow');
-      toast.success("💰 수급 분석이 완료되었습니다!");
-      if (data.data && data.data.telegram_message) {
+      
+      // 텔레그램 메시지 처리
+      if (data.data?.telegram_message) {
+        console.log("[Flow Analysis] Telegram message received:", {
+          length: data.data.telegram_message.length,
+          preview: data.data.telegram_message.substring(0, 100) + "..."
+        });
         setTelegramMessageFlow(data.data.telegram_message);
+        toast.success("💰 수급 분석 완료 - 텔레그램 알림이 전송되었습니다");
       } else {
+        console.log("[Flow Analysis] No telegram message in response");
         setTelegramMessageFlow(null);
+        toast.success("💰 수급 분석이 완료되었습니다!");
       }
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      // 상세 오류 정보 로깅
+      console.error("[Flow Analysis] Error details:", {
+        name: error.name,
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
+      
       toast.error("❌ 수급 분석 실행 중 오류가 발생했습니다.");
       setTelegramMessageFlow(null);
     }
@@ -765,22 +791,73 @@ const AnalysisResults = ({ results, selectedTab, onTabChange, isLoading,
       {results.flow.length > 0 ? (
         results.flow.map((item: any, index: number) => (
           <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-center mb-2">
-              <h4 className="font-medium text-gray-900">수급 분석</h4>
-              <Badge className={item.trade_date ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}>
-                {item.trade_date || '실시간'}
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="font-medium text-gray-900">수급 분석 - {item.stock_code}</h4>
+              <Badge className="bg-blue-100 text-blue-700">
+                분석 완료
               </Badge>
             </div>
-            <div className="space-y-1 text-sm">
-              <p className="text-gray-600">기관: <span className={`font-medium ${item.inst_net > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {item.inst_net?.toLocaleString()}주
-              </span></p>
-              <p className="text-gray-600">외국인: <span className={`font-medium ${item.foreign_net > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {item.foreign_net?.toLocaleString()}주
-              </span></p>
-              <p className="text-gray-600">개인: <span className={`font-medium ${item.individ_net > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {item.individ_net?.toLocaleString()}주
-              </span></p>
+            
+            {/* 기간별 분석 결과 */}
+            <div className="space-y-3">
+              {Object.entries(item.periods || {}).map(([periodName, periodData]: [string, any]) => (
+                <div key={periodName} className="border-l-4 border-blue-200 pl-3">
+                  <h5 className="font-medium text-sm text-gray-700 mb-2">{periodName} 분석</h5>
+                  
+                  {periodData.error ? (
+                    <p className="text-red-500 text-sm">{periodData.error}</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                      {/* 기관 수급 */}
+                      <div className="bg-gray-50 p-2 rounded">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-gray-600">기관</span>
+                          <Badge className={`text-xs ${periodData.inst_direction === '매수' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {periodData.inst_direction}
+                          </Badge>
+                        </div>
+                        <p className={`font-medium ${periodData.avg_inst_net > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {periodData.avg_inst_net?.toLocaleString()}주
+                        </p>
+                        <p className="text-xs text-gray-500">강도: {periodData.inst_strength}</p>
+                      </div>
+                      
+                      {/* 외국인 수급 */}
+                      <div className="bg-gray-50 p-2 rounded">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-gray-600">외국인</span>
+                          <Badge className={`text-xs ${periodData.foreign_direction === '매수' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {periodData.foreign_direction}
+                          </Badge>
+                        </div>
+                        <p className={`font-medium ${periodData.avg_foreign_net > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {periodData.avg_foreign_net?.toLocaleString()}주
+                        </p>
+                        <p className="text-xs text-gray-500">강도: {periodData.foreign_strength}</p>
+                      </div>
+                      
+                      {/* 개인 수급 */}
+                      <div className="bg-gray-50 p-2 rounded">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-gray-600">개인</span>
+                          <Badge className={`text-xs ${periodData.individ_direction === '매수' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {periodData.individ_direction}
+                          </Badge>
+                        </div>
+                        <p className={`font-medium ${periodData.avg_individ_net > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {periodData.avg_individ_net?.toLocaleString()}주
+                        </p>
+                        <p className="text-xs text-gray-500">강도: {periodData.individ_strength}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            
+            {/* 분석 정보 */}
+            <div className="mt-3 pt-3 border-t text-xs text-gray-500">
+              <p>데이터 기간: {item.periods?.['3일']?.earliest_date || 'N/A'} ~ {item.periods?.['3일']?.latest_date || 'N/A'}</p>
             </div>
           </div>
         ))
