@@ -356,6 +356,7 @@ class ReportService:
                 self.logger.info(f"주간 보고서 텔레그램 전송 완료: {stock_code}")
             else:
                 self.logger.error(f"주간 보고서 텔레그램 전송 실패: {stock_code}")
+                
 
         except Exception as e:
             self.logger.error(f"텔레그램 전송 중 오류: {e}")
@@ -546,6 +547,8 @@ class ReportService:
             # 응답 파싱
             comprehensive_report_data = self._parse_llm_response(report_response)
             
+            # 최근 알람 메시지 저장
+            await save_latest_signal(comprehensive_report_data["report"])
             
             
             # 4. 보고서 text만 텔레그램으로 전송 (pdf 형식으로)
@@ -753,6 +756,7 @@ def should_execute_now() -> Tuple[bool, str]:
 async def execute_weekly_report() -> Dict:
     """주간 보고서 실행 (오케스트레이터 호출용)"""
     global last_execution_time
+    global latest_signal_message
     
     try:
         logging.info("🚀 오케스트레이터 신호로 주간 보고서 생성 시작")
@@ -804,7 +808,8 @@ async def execute_weekly_report() -> Dict:
             "processed_stocks": len(processed_stocks),
             "total_reports": total_reports,
             "execution_time": last_execution_time.isoformat(),
-            "next_execution": "다음 주 일요일 20:00"
+            "next_execution": "다음 주 일요일 20:00",
+            "telegram_message" : latest_signal_message.get("message") if latest_signal_message else None # Add this line
         }
         
         logging.info(f"✅ 주간 보고서 생성 완료: {len(processed_stocks)}개 종목, {total_reports}개 보고서")

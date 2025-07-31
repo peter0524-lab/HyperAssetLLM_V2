@@ -1281,6 +1281,9 @@ class ChartAnalysisService:
             
             # 🆕 채널 알림 전송 (기존 방식 유지)
             await self._send_channel_notification(message)
+            
+            # 최근 알람 메시지 저장
+            await save_latest_signal(message)
 
         except Exception as e:
             self.logger.error(f"알림 전송 실패: {e}")
@@ -1803,6 +1806,24 @@ async def analyze_stock(stock_code: str):
 # === 스케줄링 관련 변수 ===
 last_execution_time = None
 
+
+
+# 서비스 인스턴스 생성 (지연 초기화)
+disclosure_service = None
+latest_signal_message = None  # 최근 알람 메시지 저장
+
+
+
+async def save_latest_signal(message: str):
+    """최근 알람 메시지 저장"""
+    global latest_signal_message
+    latest_signal_message = {
+        "message": message,
+        "timestamp": datetime.now().isoformat(),
+        "service": "disclosure"
+    }
+    
+    
 def should_execute_now() -> Tuple[bool, str]:
     """현재 실행할 시간인지 판단 (차트 서비스 전용 로직)"""
     global last_execution_time
@@ -1845,6 +1866,7 @@ def should_execute_now() -> Tuple[bool, str]:
 async def execute_chart_analysis() -> Dict:
     """차트 분석 실행 (오케스트레이터 호출용)"""
     global last_execution_time
+    global latest_signal_message
     
     try:
         logger.info("🚀 오케스트레이터 신호로 차트 분석 실행 시작")
@@ -1877,7 +1899,8 @@ async def execute_chart_analysis() -> Dict:
             "success": True,
             "market_status": market_status,
             "stocks_analyzed": len(chart_service.stocks_config),
-            "execution_time": last_execution_time.isoformat()
+            "execution_time": last_execution_time.isoformat(),
+            "telegram_message": latest_signal_message.get("message") if latest_signal_message else None # Add this line
         }
         
         logger.info(f"✅ 차트 분석 완료: {market_status} 모드, {len(chart_service.stocks_config)}개 종목")

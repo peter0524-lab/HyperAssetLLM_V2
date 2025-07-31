@@ -903,7 +903,7 @@ async def execute_disclosure_analysis_forexcute() -> Dict:
             "processed_stocks": len(processed_stocks),
             "total_disclosures": total_disclosures,
             "execution_time": last_execution_time.isoformat(),
-            #"telegram_message": latest_signal_message.get("message") if latest_signal_message else None # Add this line
+            "telegram_message": latest_signal_message.get("message") if latest_signal_message else None # Add this line
         }
         
         logger.info(f"✅ 공시 분석 완료: {len(processed_stocks)}개 종목")

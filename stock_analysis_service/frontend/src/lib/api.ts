@@ -671,50 +671,6 @@ export const api = {
       console.error('공시 신호 조회 에러:', error);
       throw error;
     }
-  },
-
-  // 뉴스 신호 조회
-  async getNewsSignal(): Promise<any> {
-    try {
-      const response = await gatewayClient.get('/api/news/signal');
-      return response.data;
-    } catch (error: any) {
-      console.error('뉴스 신호 조회 에러:', error);
-      throw error;
-    }
-  },
-
-  // 차트 신호 조회
-  async getChartSignal(): Promise<any> {
-    try {
-      const response = await gatewayClient.get('/api/chart/signal');
-      return response.data;
-    } catch (error: any) {
-      console.error('차트 신호 조회 에러:', error);
-      throw error;
-    }
-  },
-
-  // 수급 신호 조회
-  async getFlowSignal(): Promise<any> {
-    try {
-      const response = await gatewayClient.get('/api/flow/signal');
-      return response.data;
-    } catch (error: any) {
-      console.error('수급 신호 조회 에러:', error);
-      throw error;
-    }
-  },
-
-  // 리포트 신호 조회
-  async getReportSignal(): Promise<any> {
-    try {
-      const response = await gatewayClient.get('/api/report/signal');
-      return response.data;
-    } catch (error: any) {
-      console.error('리포트 신호 조회 에러:', error);
-      throw error;
-    }
   }
 };
 

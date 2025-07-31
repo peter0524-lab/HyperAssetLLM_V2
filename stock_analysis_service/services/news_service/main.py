@@ -2898,6 +2898,9 @@ class NewsService:
             # 🆕 채널 알림 전송 (기존 방식 유지)
             await self._send_channel_notification(final_message)
             
+            # 최근 알람 메시지 저장
+            await save_latest_signal(final_message)
+            
             logger.info(f"✅ 뉴스 알림 전송 완료: {stock_name} ({stock_code})")
             
         except Exception as e:
@@ -3603,6 +3606,7 @@ def should_execute_now() -> Tuple[bool, str]:
 async def execute_news_crawling() -> Dict:
     """뉴스 크롤링 실행"""
     global last_execution_time
+    global latest_signal_message
     try:
         logger.info("🚀 뉴스 크롤링 실행 시작")
         
@@ -3664,6 +3668,8 @@ async def execute_news_crawling() -> Dict:
             "processed_stocks": len(processed_stocks),
             "total_news": total_news,
             "execution_time": last_execution_time.isoformat(),
+            "telegram_message": latest_signal_message.get("message") if latest_signal_message else "뉴스 분석은 텔레그램 알림을 확인해 주세요" # Add this line
+            
         }
         
         logger.info(f"✅ 뉴스 크롤링 완료: {len(processed_stocks)}개 종목, {total_news}개 뉴스")
