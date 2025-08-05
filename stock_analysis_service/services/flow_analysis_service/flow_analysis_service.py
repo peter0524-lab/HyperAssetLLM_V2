@@ -87,35 +87,51 @@ class FlowAnalysisService:
         asyncio.create_task(self._load_user_settings())
 
     async def _load_user_settings(self):
-        """사용자별 설정 로드 (User Config Manager에서 중앙 집중식으로 가져오기)"""
+        """사용자별 설정 로드 - 직접 DB 쿼리 방식"""
         try:
-            user_config = await self.user_config_manager.get_user_config(self.current_user_id)
+            # 🆕 직접 DB에서 사용자별 종목 조회 (사용자 제안 방식)
+            query = """
+            SELECT stock_code, stock_name 
+            FROM user_stocks 
+            WHERE user_id = %s AND enabled = 1
+            """
+            
+            stocks_result = await self.mysql_client.execute_query_async(
+                query, (self.current_user_id,), fetch=True
+            )
             
             # 사용자 종목 설정으로 덮어쓰기
             self.stocks_config = {}
-            for stock in user_config.get("stocks", []):
-                if stock.get("enabled", True):
-                    self.stocks_config[stock["stock_code"]] = {
-                        "name": stock["stock_name"],
+            if stocks_result:
+                for row in stocks_result:
+                    stock_code = row['stock_code']
+                    stock_name = row['stock_name']
+                    self.stocks_config[stock_code] = {
+                        "name": stock_name,
                         "enabled": True
                     }
+                self.logger.info(f"📊 DB에서 로드된 사용자 종목: {list(self.stocks_config.keys())}")
+            else:
+                self.logger.warning(f"⚠️ 사용자 {self.current_user_id}의 종목이 DB에 없습니다")
             
             self.logger.info(f"✅ 사용자 종목 설정 로드 완료: {len(self.stocks_config)}개 종목")
             
         except Exception as e:
             self.logger.error(f"❌ 사용자 설정 로드 실패 (기본값 유지): {e}")
-            # 실패시 기본 종목 설정
-            self.stocks_config = {
-                "005930": {"name": "삼성전자", "enabled": True},
-                "000660": {"name": "SK하이닉스", "enabled": True}
-            }
+            # 실패시 빈 종목 설정 (기본 종목 제거)
+            self.stocks_config = {}
     
     async def set_user_id(self, user_id):
         """사용자 ID 설정 및 설정 재로드"""
         try:
             self.current_user_id = user_id
+            self.logger.info(f"🔄 사용자 ID 변경: {user_id}")
+            
+            # ✅ 모든 사용자에 대해 DB에서 직접 종목 조회
             await self._load_user_settings()
+                
             self.logger.info(f"✅ 사용자 ID 설정 및 설정 재로드 완료: {user_id}")
+            self.logger.info(f"📋 최종 stocks_config: {self.stocks_config}")
         except Exception as e:
             self.logger.error(f"❌ 사용자 ID 설정 실패: {e}")
             raise

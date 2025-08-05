@@ -17,7 +17,7 @@ class ServiceConfig:
     timeout: float = 10.0
     retry_count: int = 3
     circuit_breaker_threshold: int = 5
-    circuit_breaker_timeout: int = 60
+    circuit_breaker_timeout: int = 120
 
 @dataclass
 class GatewayConfig:
@@ -44,7 +44,7 @@ class GatewayConfig:
     
     # Circuit Breaker 기본 설정
     default_circuit_breaker_threshold: int = 5
-    default_circuit_breaker_timeout: int = 60
+    default_circuit_breaker_timeout: int = 120
     
     # 로깅 설정
     log_level: str = "INFO"

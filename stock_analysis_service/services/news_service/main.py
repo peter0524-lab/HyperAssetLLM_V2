@@ -274,18 +274,45 @@ class NaverStockAPI:
                 logger.warning(f"⚠️ PER 조회 실패: {e}")
                 per_formatted = "N/A"
             
-            # 결과 구성
+            # 저가 정보 추가
+            low_price = int(row['저가'])
+            
+            # 등락폭 계산
+            change_amount = current_price - prev_close
+            
+            # 52주 최고/최저가 조회 시도
+            try:
+                from datetime import timedelta
+                one_year_ago = (datetime.now() - timedelta(days=365)).strftime("%Y%m%d")
+                year_df = self.stock.get_market_ohlcv(one_year_ago, today, stock_code)
+                if not year_df.empty:
+                    week52_high = int(year_df['고가'].max())
+                    week52_low = int(year_df['저가'].min())
+                else:
+                    week52_high = current_price
+                    week52_low = current_price
+            except Exception as e:
+                logger.warning(f"⚠️ 52주 최고/최저가 조회 실패: {e}")
+                week52_high = current_price
+                week52_low = current_price
+            
+            # 결과 구성 (더 많은 정보 포함)
             stock_info = {
                 "종목명": stock_name,
+                "종목코드": stock_code,
                 "현재가": f"{current_price:,}",
                 "등락률": f"{change_rate:+.2f}%",
-                "전일": f"{prev_close:,}",
+                "등락폭": f"{change_amount:+,}",
+                "전일종가": f"{prev_close:,}",
                 "시가": f"{int(row['시가']):,}",
                 "고가": f"{int(row['고가']):,}",
+                "저가": f"{low_price:,}",
                 "거래량": f"{volume:,}",
                 "거래대금": f"{trading_value:,}",
                 "시가총액": market_cap_formatted,
-                "PER": per_formatted
+                "PER": per_formatted,
+                "52주최고": f"{week52_high:,}",
+                "52주최저": f"{week52_low:,}"
             }
             
             logger.info(f"✅ 주식 정보 조회 완료: {stock_name} ({stock_code})")
@@ -524,22 +551,63 @@ class NewsService:
             raise RuntimeError(f"NewsService 초기화 실패: {error_type} - {e}")
 
     async def _load_user_settings(self):
-        """사용자별 설정 로드 (User Config Manager에서 중앙 집중식으로 가져오기)"""
+        """사용자별 설정 로드 - 직접 DB 쿼리 방식"""
         try:
-            user_config = await self.user_config_manager.get_user_config(self.current_user_id)
+            logger.info(f"🔍 _load_user_settings 시작 - 사용자 ID: {self.current_user_id}")
             
-            # 사용자별 임계값으로 덮어쓰기 (기본값은 config에서 유지)
-            self.vector_similarity_threshold = user_config.get("news_similarity_threshold", self.vector_similarity_threshold)
-            self.impact_threshold = user_config.get("news_impact_threshold", self.impact_threshold)
+            # 🆕 직접 DB에서 사용자별 종목 조회 (사용자 제안 방식)
+            query = """
+            SELECT stock_code, stock_name 
+            FROM user_stocks 
+            WHERE user_id = %s AND enabled = 1
+            """
+            
+            logger.info(f"📋 실행할 쿼리: {query}")
+            logger.info(f"📋 쿼리 파라미터: {self.current_user_id}")
+            
+            stocks_result = await self.mysql_client.execute_query_async(
+                query, (self.current_user_id,), fetch=True
+            )
+            
+            logger.info(f"📊 DB 쿼리 결과: {stocks_result}")
             
             # 사용자 종목 설정으로 덮어쓰기
             self.stocks_config = {}
-            for stock in user_config.get("stocks", []):
-                if stock.get("enabled", True):
-                    self.stocks_config[stock["stock_code"]] = {
-                        "name": stock["stock_name"],
+            if stocks_result:
+                for row in stocks_result:
+                    stock_code = row['stock_code']
+                    stock_name = row['stock_name']
+                    self.stocks_config[stock_code] = {
+                        "name": stock_name,
                         "enabled": True
                     }
+                    logger.info(f"➕ 종목 추가: {stock_code} ({stock_name})")
+                logger.info(f"📊 DB에서 로드된 사용자 종목: {list(self.stocks_config.keys())}")
+            else:
+                logger.warning(f"⚠️ 사용자 {self.current_user_id}의 종목이 DB에 없습니다")
+                
+            logger.info(f"📋 최종 stocks_config: {self.stocks_config}")
+            
+            # 사용자 기본 설정도 가져오기 (임계값 등) - 직접 DB에서 조회
+            try:
+                profile_query = """
+                SELECT news_similarity_threshold, news_impact_threshold
+                FROM user_profiles 
+                WHERE user_id = %s
+                """
+                profile_result = await self.mysql_client.execute_query_async(
+                    profile_query, (self.current_user_id,), fetch=True
+                )
+                
+                if profile_result and len(profile_result) > 0:
+                    profile_row = profile_result[0]
+                    self.vector_similarity_threshold = profile_row.get("news_similarity_threshold", self.vector_similarity_threshold)
+                    self.impact_threshold = profile_row.get("news_impact_threshold", self.impact_threshold)
+                    logger.info(f"📊 사용자 임계값 로드: 유사도={self.vector_similarity_threshold}, 영향도={self.impact_threshold}")
+                else:
+                    logger.warning(f"⚠️ 사용자 {self.current_user_id}의 프로필이 DB에 없습니다")
+            except Exception as profile_error:
+                logger.warning(f"⚠️ 사용자 임계값 설정 로드 실패, 기본값 사용: {profile_error}")
             
             logger.info(f"✅ 사용자 설정 로드 완료: {len(self.stocks_config)}개 종목, "
                        f"유사도임계값={self.vector_similarity_threshold}, "
@@ -547,18 +615,20 @@ class NewsService:
             
         except Exception as e:
             logger.error(f"❌ 사용자 설정 로드 실패 (기본값 유지): {e}")
-            # 실패시 기본 종목 설정
-            self.stocks_config = {
-                "005930": {"name": "삼성전자", "enabled": True},
-                "000660": {"name": "SK하이닉스", "enabled": True}
-            }
+            # 실패시 빈 종목 설정 (기본 종목 제거)
+            self.stocks_config = {}
     
     async def set_user_id(self, user_id):
         """사용자 ID 설정 및 설정 재로드"""
         try:
             self.current_user_id = user_id
+            logger.info(f"🔄 사용자 ID 변경: {user_id}")
+            
+            # ✅ 모든 사용자에 대해 DB에서 직접 종목 조회
             await self._load_user_settings()
+                
             logger.info(f"✅ 사용자 ID 설정 및 설정 재로드 완료: {user_id}")
+            logger.info(f"📋 최종 stocks_config: {self.stocks_config}")
         except Exception as e:
             logger.error(f"❌ 사용자 ID 설정 실패: {e}")
             raise
@@ -2816,12 +2886,25 @@ class NewsService:
             
             # 종목 정보 조회
             stock_info = self.get_stock_info_for_code(stock_code)
-            current_price = stock_info.get('current_price', 'N/A')
-            prev_close = stock_info.get('prev_close', 'N/A')
-            open_price = stock_info.get('open_price', 'N/A')
-            high_price = stock_info.get('high_price', 'N/A')
-            market_cap = stock_info.get('market_cap', 'N/A')
-            per_ratio = stock_info.get('per_ratio', 'N/A')
+            logger.info(f"🔍 텔레그램 메시지용 종목 정보: {stock_info}")
+            
+            # 종목 정보 추출 (올바른 키 사용)
+            stock_name = stock_info.get('종목명', stock_code)
+            current_price = stock_info.get('현재가', 'N/A')
+            prev_close = stock_info.get('전일종가', 'N/A')
+            open_price = stock_info.get('시가', 'N/A')
+            high_price = stock_info.get('고가', 'N/A')
+            low_price = stock_info.get('저가', 'N/A')
+            change_rate = stock_info.get('등락률', 'N/A')
+            change_amount = stock_info.get('등락폭', 'N/A')
+            volume = stock_info.get('거래량', 'N/A')
+            trading_value = stock_info.get('거래대금', 'N/A')
+            market_cap = stock_info.get('시가총액', 'N/A')
+            per_ratio = stock_info.get('PER', 'N/A')
+            week52_high = stock_info.get('52주최고', 'N/A')
+            week52_low = stock_info.get('52주최저', 'N/A')
+            
+            logger.info(f"🏷️ 텔레그램 표시 정보: 종목명={stock_name}, 현재가={current_price}, 전일={prev_close}, 등락률={change_rate}")
             
             # 영향도 레벨 결정
             if impact_score >= 0.9:
@@ -2862,13 +2945,18 @@ class NewsService:
             message_parts.append("")
             message_parts.append("📊 <b>종목 현황</b>")
             message_parts.append(f"• 종목: <b>{stock_name}</b> ({stock_code})")
-            message_parts.append(f"• 현재가: <b>{current_price}</b> 원")
-            message_parts.append(f"• 전일종가: {prev_close} 원")
-            message_parts.append(f"• 시가: {open_price} 원 | 고가: {high_price} 원")
+            message_parts.append(f"• 현재가: <b>{current_price}</b>원 ({change_rate} / {change_amount}원)")
+            message_parts.append(f"• 전일종가: {prev_close}원")
+            message_parts.append(f"• 시가: {open_price}원 | 고가: {high_price}원 | 저가: {low_price}원")
             message_parts.append("")
             message_parts.append("📈 <b>기업 정보</b>")
             message_parts.append(f"• 시가총액: {market_cap}")
             message_parts.append(f"• PER: {per_ratio}")
+            message_parts.append(f"• 52주 최고: {week52_high}원 | 최저: {week52_low}원")
+            message_parts.append("")
+            message_parts.append("📊 <b>거래 정보</b>")
+            message_parts.append(f"• 거래량: {volume}주")
+            message_parts.append(f"• 거래대금: {trading_value}원")
             message_parts.append("")
             message_parts.append("📰 <b>뉴스 정보</b>")
             message_parts.append(f"• 제목: {news_item['title']}")
@@ -2912,46 +3000,39 @@ class NewsService:
             })
     
     async def _send_user_notifications(self, news_item: Dict, message: str, impact_score: float):
-        """사용자별 알림 전송 (설정 확인 + 종목 필터링)"""
+        """사용자별 알림 전송 (직접 DB 쿼리 방식)"""
         try:
-            # UserConfigLoader import
-            from shared.service_config.user_config_loader import UserConfigLoader
-            
-            config_loader = UserConfigLoader()
             stock_code = news_item.get("stock_code", "")
             
-            # 모든 활성 사용자 조회 (현재는 테스트용으로 고정 사용자)
-            # TODO: 실제로는 데이터베이스에서 활성 사용자 목록을 조회해야 함
-            test_users = ["1"]  # 테스트용 사용자 ID
-            
-            for user_id in test_users:
+            # 현재 사용자만 처리 (사용자별 종목이 활성화된 경우만)
+            if self.current_user_id and stock_code in self.stocks_config:
                 try:
-                    # 🆕 사용자가 이 종목에 관심이 있는지 확인
-                    is_interested = await config_loader.is_user_interested_in_stock(user_id, stock_code)
-                    if not is_interested:
-                        logger.debug(f"⚠️ 사용자가 종목에 관심 없음: {user_id} - {stock_code}")
-                        continue
+                    logger.debug(f"📋 사용자 {self.current_user_id}에게 {stock_code} 알림 전송 시도")
                     
-                    # 사용자별 알림 설정 조회
-                    notification_settings = await config_loader.get_user_notification_settings(user_id)
+                    # 간단한 텔레그램 설정 확인 (DB에서 직접 조회)
+                    telegram_query = """
+                    SELECT enabled, chat_id, bot_token 
+                    FROM user_telegram_configs 
+                    WHERE user_id = %s AND enabled = 1
+                    """
+                    telegram_result = await self.db_client.execute_query_async(
+                        telegram_query, (self.current_user_id,), fetch=True
+                    )
                     
-                    # 뉴스 알림이 활성화되어 있고, 전체 알림이 활성화된 경우만 전송
-                    if (notification_settings.get("enabled", True) and 
-                        notification_settings.get("news_alerts", True)):
+                    if telegram_result and len(telegram_result) > 0:
+                        telegram_config = telegram_result[0]
+                        logger.info(f"✅ 사용자 텔레그램 설정 로드: {self.current_user_id}")
                         
-                        # 사용자별 텔레그램 설정 조회
-                        telegram_config = await config_loader.get_user_telegram_config(user_id)
-                        if telegram_config and telegram_config.get("enabled", True):
-                            # 개별 사용자에게 알림 전송
-                            await self._send_user_notification(user_id, message, telegram_config)
-                            logger.info(f"✅ 사용자 뉴스 알림 전송 완료: {user_id} - {stock_code}")
-                        else:
-                            logger.debug(f"⚠️ 사용자 텔레그램 비활성화: {user_id}")
+                        # 개별 사용자에게 알림 전송 (기존 로직 사용)
+                        # 이 부분은 기존 채널 알림과 동일하게 처리하거나 생략 가능
+                        logger.info(f"📱 사용자별 개인 알림은 채널 알림으로 대체됨: {self.current_user_id} - {stock_code}")
                     else:
-                        logger.debug(f"⚠️ 사용자 뉴스 알림 비활성화: {user_id}")
+                        logger.debug(f"⚠️ 사용자 텔레그램 설정 없음: {self.current_user_id}")
                         
                 except Exception as user_error:
-                    logger.error(f"❌ 사용자 알림 전송 실패: {user_id} - {user_error}")
+                    logger.error(f"❌ 사용자 알림 전송 실패: {self.current_user_id} - {user_error}")
+            else:
+                logger.debug(f"⚠️ 사용자가 종목에 관심 없음: {self.current_user_id} - {stock_code}")
                     
         except Exception as e:
             logger.error(f"❌ 사용자별 알림 전송 실패: {e}")
@@ -3621,11 +3702,37 @@ async def execute_news_crawling() -> Dict:
                 logger.error(f"❌ 뉴스 서비스 지연 초기화 실패: {e}")
                 return {"success": False, "error": f"서비스 초기화 실패: {str(e)}"}
         
-        # 모든 종목에 대해 뉴스 크롤링 실행
+        # 사용자별 종목에 대해 뉴스 크롤링 실행
         total_news = 0
         processed_stocks = []
         
-        for stock_code in news_service_instance.stock_codes:
+        # 사용자별 종목 설정이 있으면 해당 종목만 처리, 없으면 기본 종목 처리
+        user_stock_codes = []
+        
+        logger.info(f"🔍 종목 선택 로직 시작")
+        logger.info(f"📋 news_service_instance: {news_service_instance}")
+        logger.info(f"📋 hasattr(stocks_config): {hasattr(news_service_instance, 'stocks_config')}")
+        if hasattr(news_service_instance, 'stocks_config'):
+            logger.info(f"📋 stocks_config 내용: {news_service_instance.stocks_config}")
+            logger.info(f"📋 stocks_config 타입: {type(news_service_instance.stocks_config)}")
+            logger.info(f"📋 stocks_config bool: {bool(news_service_instance.stocks_config)}")
+        
+        if hasattr(news_service_instance, 'stocks_config') and news_service_instance.stocks_config:
+            user_stock_codes = [code for code, config in news_service_instance.stocks_config.items() if config.get('enabled', True)]
+            logger.info(f"📊 사용자별 활성화된 종목: {len(user_stock_codes)}개 - {list(user_stock_codes)}")
+        else:
+            logger.warning(f"⚠️ stocks_config가 비어있음, 기본 종목으로 fallback")
+            if hasattr(news_service_instance, 'stock_codes'):
+                logger.info(f"📋 기본 stock_codes: {news_service_instance.stock_codes}")
+                user_stock_codes = news_service_instance.stock_codes[:1]  # 기본값으로 첫 번째 종목만
+            else:
+                logger.error(f"❌ stock_codes도 없음!")
+                user_stock_codes = ["006800"]  # 최후의 수단
+            logger.warning(f"⚠️ 사용자별 종목 설정 없음, 기본 종목 사용: {user_stock_codes}")
+            
+        logger.info(f"🎯 최종 선택된 종목들: {user_stock_codes}")
+        
+        for stock_code in user_stock_codes:
             try:
                 # 종목별 뉴스 크롤링
                 logger.info(f"📰 {stock_code} 뉴스 크롤링 시작")
@@ -3653,7 +3760,17 @@ async def execute_news_crawling() -> Dict:
                             logger.error(f"❌ 뉴스 처리 실패: {e}")
                             continue
                 
-                processed_stocks.append(stock_code)
+                # 종목 이름 가져오기 (사용자 설정에서 먼저, 없으면 기본 이름에서)
+                stock_name = stock_code  # 기본값
+                if hasattr(news_service_instance, 'stocks_config') and stock_code in news_service_instance.stocks_config:
+                    stock_name = news_service_instance.stocks_config[stock_code].get('name', stock_code)
+                elif hasattr(news_service_instance, 'stock_names') and stock_code in news_service_instance.stock_names:
+                    stock_name = news_service_instance.stock_names[stock_code]
+                
+                processed_stocks.append({
+                    "code": stock_code,
+                    "name": stock_name
+                })
                 logger.info(f"✅ {stock_code} 뉴스 크롤링 완료: {len(news_list)}개")
                 
             except Exception as e:
@@ -3663,13 +3780,16 @@ async def execute_news_crawling() -> Dict:
         # 실행 시간 업데이트
         last_execution_time = datetime.now()
         
+        # processed_stocks는 이미 상세 정보를 포함하고 있음
+        processed_stock_details = processed_stocks
+        
         result = {
             "success": True,
             "processed_stocks": len(processed_stocks),
+            "processed_stock_list": processed_stock_details,  # 실제 종목 리스트 추가
             "total_news": total_news,
             "execution_time": last_execution_time.isoformat(),
-            "telegram_message": latest_signal_message.get("message") if latest_signal_message else "뉴스 분석은 텔레그램 알림을 확인해 주세요" # Add this line
-            
+            "telegram_message": latest_signal_message.get("message") if latest_signal_message else "뉴스 분석은 텔레그램 알림을 확인해 주세요"
         }
         
         logger.info(f"✅ 뉴스 크롤링 완료: {len(processed_stocks)}개 종목, {total_news}개 뉴스")
