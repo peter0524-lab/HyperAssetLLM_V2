@@ -66,6 +66,8 @@ class DARTAPIClient:
             # 리스크
             "감사의견", "의견거절", "한정", "소송", "제재", "상장폐지", "관리종목"
         ]
+        
+        self.business_keywords = ["사업보고서","반기보고서","분기보고서"]
 
         # API 키 유효성 검사
         if not self.api_key:
@@ -292,6 +294,60 @@ class DARTAPIClient:
             logger.error(f"공시 조회 중 오류 발생: {e}")
             return []
         
+    def get_business(self, stock_code: str, days: int = 365*2) -> Optional[str]:
+        """
+        최근 사업보고서, 반기보고서, 분기보고서 중 가장 최신 공시의 rcept_no를 반환합니다.
+        """
+        try:
+            logger.info(f"사업보고서 정보 조회 시작: {stock_code}")
+            
+            corp_code = self.get_corp_code(stock_code)
+            if not corp_code:
+                logger.error(f"기업 고유번호 조회 실패: {stock_code}")
+                return None
+
+            start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+            end_date = datetime.now().strftime("%Y%m%d")
+            
+            all_disclosures = []
+            page_no = 1
+            
+            while True:
+                params = {
+                    "corp_code": corp_code,
+                    "bgn_de": start_date,
+                    "end_de": end_date,
+                    "page_no": str(page_no),
+                    "page_count": "100",
+                }
+
+                result = self._make_request("list", params)
+                if not result or not result.get("list"):
+                    break
+
+                for item in result["list"]:
+                    report_nm = item.get("report_nm", "")
+                    if any(keyword in report_nm for keyword in self.business_keywords):
+                        all_disclosures.append(item)
+
+                if len(result["list"]) < 100:
+                    break
+                page_no += 1
+
+            if not all_disclosures:
+                logger.info(f"사업보고서 관련 공시 없음: {stock_code}")
+                return None
+
+            # rcept_dt 기준으로 최신 공시를 찾습니다.
+            latest_disclosure = max(all_disclosures, key=lambda x: x.get('rcept_dt', '0'))
+            
+            logger.info(f"최신 사업보고서 rcept_no: {latest_disclosure.get('rcept_no')}")
+            return latest_disclosure.get('rcept_no')
+
+        except Exception as e:
+            logger.error(f"사업보고서 조회 중 오류 발생: {e}")
+            return None
+        
     async def get_disclosure_detail(self, rcept_no: str) -> Optional[Dict]: #공시 document 원문 가져와서 xml 파싱 후 text 반환
         """DART document.xml API에서 공시 텍스트 추출 (ZIP → XML → Text)"""
         try:
@@ -332,6 +388,60 @@ class DARTAPIClient:
             logger.error(f"[공시 파싱 오류] {e}")
             return None
 
+
+    async def get_business_detail(self, rcept_no: str) -> Optional[str]:
+        """
+        DART document.xml API에서 사업보고서의 '사업의 개요' SECTION-2 내부의 P/SPAN 텍스트만 추출 (TABLE 무시)
+        """
+        try:
+            # 1. ZIP 요청
+            url = f"{self.api_url}/document.xml"
+            params = {"rcept_no": rcept_no, "crtfc_key": self.api_key}
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params, timeout=10) as response:
+                    if response.status != 200:
+                        logger.error(f"[공시 다운로드 실패] {response.status}")
+                        return None
+                    zip_bytes = await response.read()
+
+            # 2. ZIP 해제 후 XML 추출
+            with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+                xml_name = next((f for f in zf.namelist() if f"{rcept_no}.xml" in f), None)
+                if not xml_name:
+                    raise FileNotFoundError(f"{rcept_no}.xml 파일을 찾을 수 없습니다.")
+                xml_bytes = zf.read(xml_name)
+                xml_content = xml_bytes.decode("utf-8", errors="replace")
+
+            # 3. & 문자 보정
+            xml_content = re.sub(r"&(?!(?:amp|lt|gt|quot|apos);)", "&amp;", xml_content)
+
+            # 4. BeautifulSoup으로 파싱
+            soup = BeautifulSoup(xml_content, 'lxml-xml')
+
+            # 5. '사업의 개요' SECTION-2 찾기
+            target_section = None
+            for sec in soup.find_all('SECTION-2'):
+                title = sec.find('TITLE')
+                if title and '사업의 개요' in title.get_text():
+                    target_section = sec
+                    break
+
+            if not target_section:
+                logger.warning(f"사업의 개요 섹션을 찾지 못했습니다. rcept_no={rcept_no}")
+                return None
+
+            # 6. TABLE 태그 내부 텍스트는 무시, SECTION-2 바로 아래 P/SPAN만 추출
+            text_parts = []
+            for elem in target_section.find_all(['P', 'SPAN'], recursive=False):
+                txt = elem.get_text(strip=True)
+                if txt:
+                    text_parts.append(txt)
+
+            return "\n".join(text_parts) if text_parts else None
+
+        except Exception as e:
+            logger.error(f"[사업보고서 텍스트 파싱 오류] rcept_no={rcept_no}, error={e}")
+            return None
     def _is_important_disclosure(self, disclosure: Dict) -> bool:
         """공시의 중요도 판단 (키워드 필터 안전 처리 포함)"""
         try:
