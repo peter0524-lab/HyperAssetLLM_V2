@@ -892,13 +892,29 @@ class FlowAnalysisService:
             self.logger.info(f"  - 총 소요시간: {total_time:.2f}초")
             self.logger.info(f"  - 평균 처리시간: {(total_time/len(stock_codes)):.2f}초/종목")
             
-            # 5. 텔레그램 메시지 생성
+            # 5. 텔레그램 메시지 생성 및 전송
             telegram_message = self._build_flow_analysis_telegram_message(analysis_results)
+            
+            # 텔레그램 메시지 전송
+            telegram_sent = False
+            try:
+                self.logger.info(f"[Flow Analysis][{analysis_id}] 텔레그램 메시지 전송 시도...")
+                telegram_sent = await self.telegram_bot.send_message_async(telegram_message)
+                
+                if telegram_sent:
+                    self.logger.info(f"[Flow Analysis][{analysis_id}] 텔레그램 메시지 전송 성공")
+                else:
+                    self.logger.warning(f"[Flow Analysis][{analysis_id}] 텔레그램 메시지 전송 실패")
+                    
+            except Exception as e:
+                self.logger.error(f"[Flow Analysis][{analysis_id}] 텔레그램 전송 중 오류: {e}")
+                telegram_sent = False
             
             return {
                 "success": True,
                 "data": analysis_results,
                 "telegram_message": telegram_message,
+                "telegram_sent": telegram_sent,
                 "analysis_id": analysis_id,
                 "analysis_time": datetime.now().isoformat(),
                 "analyzed_stocks": analyzed_count,
