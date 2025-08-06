@@ -1047,7 +1047,7 @@ class ChartAnalysisService:
                     raise ValueError("stocks_config가 비어있음")
             except Exception as e:
                 self.logger.warning(f"⚠️ 종목 설정 불러오기 실패 또는 비어있음: {e} → 기본 종목으로 대체")
-                stock_items = [("006800", {})
+                stock_items = [("006800", {})]
                 
                 
             self.logger.info(f"🔍 전체 종목 조건 체크 시작: {len(stock_items)}개 종목")
