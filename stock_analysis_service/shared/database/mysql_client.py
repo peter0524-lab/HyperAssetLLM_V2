@@ -405,8 +405,8 @@ class MySQLClient:
                 env_config.update(custom_config)
 
             # 연결 풀 설정 최적화 - custom_config에 connection_limit이 있다면 사용하고, 없으면 기존 env_config에서 가져옴
-            pool_size = min(2, custom_config.get("connection_limit", get_int_env_var("DATABASE_CONNECTION_LIMIT", 2)))
-            max_overflow = min(2, custom_config.get("max_overflow", get_int_env_var("DATABASE_MAX_OVERFLOW", 2)))
+            pool_size = min(2, (custom_config or {}).get("connection_limit", get_int_env_var("DATABASE_CONNECTION_LIMIT", 2)))
+            max_overflow = min(2, (custom_config or {}).get("max_overflow", get_int_env_var("DATABASE_MAX_OVERFLOW", 2)))
             
             self.pool = MySQLConnectionPool(
                 pool_size=pool_size,
