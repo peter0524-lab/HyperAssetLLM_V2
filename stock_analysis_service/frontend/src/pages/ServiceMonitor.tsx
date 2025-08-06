@@ -69,7 +69,8 @@ const ServiceMonitor = () => {
     
     try {
       // 헬스체크 요청
-      const response = await fetch(`http://localhost:${service.port}/health`, {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://hyperasset.site';
+      const response = await fetch(`${API_BASE_URL}/health`, {
         method: 'GET',
         signal: AbortSignal.timeout(5000)
       });
@@ -109,7 +110,8 @@ const ServiceMonitor = () => {
     
     try {
       // 백엔드 API 호출
-      const response = await fetch('http://localhost:8005/api/monitoring/services-status', {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://hyperasset.site';
+      const response = await fetch(`${API_BASE_URL}/api/monitoring/services-status`, {
         method: 'GET',
         signal: AbortSignal.timeout(15000) // 15초 타임아웃
       });

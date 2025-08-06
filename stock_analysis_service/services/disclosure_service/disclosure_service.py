@@ -19,7 +19,8 @@ import re
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 # from services.disclosure_service.gemini_analyzer import GeminiDisclosureAnalyzer  # 더 이상 사용하지 않음
-from services.chart_service.chart_service import ChartAnalysisService
+# from services.chart_service.chart_service import ChartAnalysisService  # 마이크로서비스에서 제거
+from shared.apis.kis_api import KISAPIClient
 from shared.database.mysql_client import get_mysql_client
 #from shared.database.vector_db import VectorDBClient
 from shared.llm.llm_manager import llm_manager
@@ -63,7 +64,7 @@ class DisclosureService:
         self.llm_manager = llm_manager
         self.dart_client = DARTAPIClient()
         self.telegram_bot = TelegramBotClient()
-        self.chart_service = ChartAnalysisService()
+        self.kis_client = KISAPIClient()  # KIS API 직접 사용
         
         # 사용자별 설정 로드 (MySQL에서 stock_code만 덮어쓰기)
         asyncio.create_task(self._load_user_settings())
@@ -340,8 +341,8 @@ class DisclosureService:
                         message += f"{'  ' if is_last else '│ '}   <i>키워드 없음</i>\n"
 
 
-                    # 주가 데이터 조회
-                    five_day_prices = await self.chart_service.get_historical_prices(stock_code, case_date, 5)
+                    # 주가 데이터 조회 (KIS API 직접 호출)
+                    five_day_prices = await self._get_historical_prices(stock_code, case_date, 5)
                     
                     if five_day_prices:
                         message += f"{'  ' if is_last else '│ '}  📈 <b>이후 5일 주가</b>:\n"
@@ -1153,6 +1154,60 @@ async def check_schedule():
             if self.user_config_loader:
                 self.user_config_loader.clear_cache()
             self.logger.debug("🧹 모든 사용자 설정 캐시 클리어")
+
+    async def _get_historical_prices(self, stock_code: str, from_date: str, days: int = 5) -> List[Dict]:
+        """특정 날짜로부터 이후 영업일 N일간의 가격 정보 조회 (KIS API 직접 호출)"""
+        try:
+            import pandas as pd
+            from datetime import datetime, timedelta
+            
+            self.logger.info(f"과거 가격 정보 조회: {stock_code}, {from_date}, 영업일 {days}일")
+            
+            # 날짜 형식 변환
+            from_date_dt = pd.to_datetime(from_date)
+            current_date = datetime.now()
+            
+            # 시작일과 종료일 계산 (여유있게 30일 전부터)
+            start_date = (from_date_dt - timedelta(days=30)).strftime('%Y%m%d')
+            end_date = datetime.now().strftime('%Y%m%d')
+            
+            # KIS API로 확장된 일봉 데이터 조회
+            extended_data = await self.kis_client.get_daily_chart_extended(
+                stock_code, 
+                start_date=start_date,
+                end_date=end_date,
+                period=1000
+            )
+            
+            if not extended_data:
+                self.logger.warning(f"주가 데이터 조회 실패: {stock_code}")
+                return []
+            
+            # pandas DataFrame으로 변환하여 날짜 필터링
+            df = pd.DataFrame(extended_data)
+            df['date'] = pd.to_datetime(df['date'])
+            
+            # from_date 이후 데이터만 필터링
+            filtered_df = df[df['date'] >= from_date_dt].head(days)
+            
+            # 결과 반환 (Dictionary 리스트로)
+            result = []
+            for _, row in filtered_df.iterrows():
+                result.append({
+                    'date': row['date'].strftime('%Y-%m-%d'),
+                    'open': row.get('open', 0),
+                    'high': row.get('high', 0),
+                    'low': row.get('low', 0),
+                    'close': row.get('close', 0),
+                    'volume': row.get('volume', 0)
+                })
+            
+            self.logger.info(f"주가 데이터 조회 성공: {len(result)}일치")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"주가 데이터 조회 실패: {e}")
+            return []
 
 def main():
     """메인 실행 함수"""

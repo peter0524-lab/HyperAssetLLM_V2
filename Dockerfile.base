@@ -1,0 +1,40 @@
+﻿# HyperAsset LLM Base Image
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 시스템 패키지 설치 (OpenCV 의존성 포함)
+RUN apt-get update && apt-get install -y --fix-missing \
+    gcc \
+    g++ \
+    curl \
+    wget \
+    git \
+    build-essential \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python 환경 설정
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV ENV=production
+
+# Python 의존성 설치
+COPY stock_analysis_service/requirements_final_complete.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements_final_complete.txt
+
+# 공통 코드 복사
+COPY stock_analysis_service/shared/ ./shared/
+COPY stock_analysis_service/config/ ./config/
+COPY stock_analysis_service/database/ ./database/
+COPY stock_analysis_service/service_manager.py ./service_manager.py
+
+# ChromaDB 데이터 디렉토리 생성
+RUN mkdir -p /app/data/chroma

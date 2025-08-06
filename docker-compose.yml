@@ -1,0 +1,164 @@
+﻿services:
+  # 베이스 이미지 빌드
+  base:
+    build:
+      context: .
+      dockerfile: Dockerfile.base
+    image: hyperasset-base:latest
+
+  # NGINX (SSL 터미네이션 및 리버스 프록시)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - api-gateway
+      - user-service
+      - news-service
+      - disclosure-service
+      - chart-service
+      - report-service
+      - flow-service
+    restart: unless-stopped
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: stock_analysis_service/services/api_gateway/Dockerfile
+    depends_on:
+      - base
+    ports:
+      - "8005:8005"
+    environment:
+      - ENV=production
+      - DATABASE_HOST=database-1.c7gaw6asmxbo.ap-northeast-2.rds.amazonaws.com
+      - DATABASE_PORT=3306
+      - DATABASE_USER=admin
+      - DATABASE_PASSWORD=Peter0524!
+      - DATABASE_NAME=HyperAsset
+    restart: unless-stopped
+
+  # User Service
+  user-service:
+    build:
+      context: .
+      dockerfile: stock_analysis_service/services/user_service/Dockerfile
+    depends_on:
+      - base
+    ports:
+      - "8006:8006"
+    environment:
+      - ENV=production
+      - DATABASE_HOST=database-1.c7gaw6asmxbo.ap-northeast-2.rds.amazonaws.com
+      - DATABASE_PORT=3306
+      - DATABASE_USER=admin
+      - DATABASE_PASSWORD=Peter0524!
+      - DATABASE_NAME=HyperAsset
+    restart: unless-stopped
+
+  # News Service
+  news-service:
+    build:
+      context: .
+      dockerfile: stock_analysis_service/services/news_service/Dockerfile
+    depends_on:
+      - base
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./stock_analysis_service/data/chroma:/app/data/chroma
+    environment:
+      - ENV=production
+      - DATABASE_HOST=database-1.c7gaw6asmxbo.ap-northeast-2.rds.amazonaws.com
+      - DATABASE_PORT=3306
+      - DATABASE_USER=admin
+      - DATABASE_PASSWORD=Peter0524!
+      - DATABASE_NAME=HyperAsset
+      - HYPERCLOVA_API_KEY=nv-b8935535a68442e3bce731a356b119a4Xbzy
+      - HYPERCLOVA_API_URL=https://clovastudio.stream.ntruss.com/testapp/v3/chat-completions/HCX-005
+    restart: unless-stopped
+
+  # Disclosure Service
+  disclosure-service:
+    build:
+      context: .
+      dockerfile: stock_analysis_service/services/disclosure_service/Dockerfile
+    depends_on:
+      - base
+    ports:
+      - "8002:8002"
+    environment:
+      - ENV=production
+      - DATABASE_HOST=database-1.c7gaw6asmxbo.ap-northeast-2.rds.amazonaws.com
+      - DATABASE_PORT=3306
+      - DATABASE_USER=admin
+      - DATABASE_PASSWORD=Peter0524!
+      - DATABASE_NAME=HyperAsset
+    restart: unless-stopped
+
+  # Chart Service
+  chart-service:
+    build:
+      context: .
+      dockerfile: stock_analysis_service/services/chart_service/Dockerfile
+    depends_on:
+      - base
+    ports:
+      - "8003:8003"
+    environment:
+      - ENV=production
+      - DATABASE_HOST=database-1.c7gaw6asmxbo.ap-northeast-2.rds.amazonaws.com
+      - DATABASE_PORT=3306
+      - DATABASE_USER=admin
+      - DATABASE_PASSWORD=Peter0524!
+      - DATABASE_NAME=HyperAsset
+    restart: unless-stopped
+
+  # Report Service
+  report-service:
+    build:
+      context: .
+      dockerfile: stock_analysis_service/services/report_service/Dockerfile
+    depends_on:
+      - base
+    ports:
+      - "8004:8004"
+    environment:
+      - ENV=production
+      - DATABASE_HOST=database-1.c7gaw6asmxbo.ap-northeast-2.rds.amazonaws.com
+      - DATABASE_PORT=3306
+      - DATABASE_USER=admin
+      - DATABASE_PASSWORD=Peter0524!
+      - DATABASE_NAME=HyperAsset
+    restart: unless-stopped
+
+  # Flow Analysis Service
+  flow-service:
+    build:
+      context: .
+      dockerfile: stock_analysis_service/services/flow_analysis_service/Dockerfile
+    depends_on:
+      - base
+    ports:
+      - "8010:8010"
+    environment:
+      - ENV=production
+      - DATABASE_HOST=database-1.c7gaw6asmxbo.ap-northeast-2.rds.amazonaws.com
+      - DATABASE_PORT=3306
+      - DATABASE_USER=admin
+      - DATABASE_PASSWORD=Peter0524!
+      - DATABASE_NAME=HyperAsset
+    restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  chroma_data:
+    driver: local
