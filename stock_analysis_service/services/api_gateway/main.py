@@ -294,10 +294,10 @@ class OptimizedAPIGateway:
                 enabled=True,
                 circuit_breaker=CircuitBreaker(
                     fail_max=5,
-                    reset_timeout=60,
+                    reset_timeout=120,
                     exclude=[aiohttp.ClientTimeout]
                 ),
-                timeout=60.0
+                timeout=120.0
             ),
             "disclosure": ServiceConfig(
                 name="Disclosure Service",
@@ -306,7 +306,7 @@ class OptimizedAPIGateway:
                 enabled=True,
                 circuit_breaker=CircuitBreaker(
                     fail_max=5,
-                    reset_timeout=60,
+                    reset_timeout=120,
                     exclude=[aiohttp.ClientTimeout]
                 ),
                 timeout=20.0
@@ -342,7 +342,7 @@ class OptimizedAPIGateway:
                 enabled=True,
                 circuit_breaker=CircuitBreaker(
                     fail_max=5,
-                    reset_timeout=60,
+                    reset_timeout=120,
                     exclude=[aiohttp.ClientTimeout]
                 ),
                 timeout=15.0
@@ -378,7 +378,7 @@ class OptimizedAPIGateway:
                 enabled=True,
                 circuit_breaker=CircuitBreaker(
                     fail_max=5,
-                    reset_timeout=60,
+                    reset_timeout=120,
                     exclude=[aiohttp.ClientTimeout]
                 ),
                 timeout=15.0
@@ -390,7 +390,7 @@ class OptimizedAPIGateway:
                 enabled=True,
                 circuit_breaker=CircuitBreaker(
                     fail_max=5,
-                    reset_timeout=60,
+                    reset_timeout=120,
                     exclude=[aiohttp.ClientTimeout]
                 ),
                 timeout=30.0
@@ -402,7 +402,7 @@ class OptimizedAPIGateway:
                 enabled=True,
                 circuit_breaker=CircuitBreaker(
                     fail_max=5,
-                    reset_timeout=60,
+                    reset_timeout=120,
                     exclude=[aiohttp.ClientTimeout]
                 ),
                 timeout=20.0

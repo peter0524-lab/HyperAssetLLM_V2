@@ -69,10 +69,18 @@ const Profile = () => {
       toast.success("✅ 프로필이 성공적으로 저장되었습니다!");
       
       // 사용자 ID 업데이트 (백엔드에서 반환된 ID 사용)
-      if (data?.user_id) {
-        userStorage.setUserId(data.user_id);
-        userStorage.setRealUserId(data.user_id); // 실제 DB 사용자 ID 저장
-        setUserId(data.user_id);
+      console.log('🔍 API 응답 전체:', data);
+      console.log('🔍 data.data:', data?.data);
+      console.log('🔍 data.data.user_id:', data?.data?.user_id);
+      
+      if (data?.data?.user_id) {
+        const realUserId = data.data.user_id;
+        console.log('💾 실제 DB user_id로 localStorage 업데이트:', realUserId);
+        userStorage.setUserId(realUserId);
+        userStorage.setRealUserId(realUserId); // 실제 DB 사용자 ID 저장
+        setUserId(realUserId);
+      } else {
+        console.error('❌ 응답에서 user_id를 찾을 수 없습니다:', data);
       }
       
       // 다음 단계로 이동

@@ -78,6 +78,7 @@ const ServiceActivation = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [userId, setUserId] = useState<string>('');
+  const [realUserId, setRealUserId] = useState<string>(''); // 실제 DB 사용자 ID
   const [selectedServices, setSelectedServices] = useState<Record<string, boolean>>({
     news_service: false,
     disclosure_service: false,
@@ -89,12 +90,26 @@ const ServiceActivation = () => {
 
   useEffect(() => {
     const currentUserId = userStorage.getUserId();
+    const currentRealUserId = userStorage.getRealUserId();
+    
+    console.log("🔍 ServiceActivation 초기화:");
+    console.log("📱 전화번호 기반 ID:", currentUserId);
+    console.log("🆔 실제 DB 사용자 ID:", currentRealUserId);
+    
     if (!currentUserId) {
       toast.error("사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.");
       navigate('/auth');
       return;
     }
+    
+    if (!currentRealUserId) {
+      toast.error("사용자 데이터베이스 정보를 찾을 수 없습니다. 다시 로그인해주세요.");
+      navigate('/auth');
+      return;
+    }
+    
     setUserId(currentUserId);
+    setRealUserId(currentRealUserId);
   }, [navigate]);
 
   // 서비스 토글 핸들러
@@ -111,88 +126,68 @@ const ServiceActivation = () => {
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       console.log("🎯 서비스 활성화 프로세스 시작!");
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log("👤 현재 사용자 ID:", userId);
+      console.log("👤 전화번호 기반 ID:", userId);
+      console.log("🆔 실제 DB 사용자 ID:", realUserId);
       console.log("📋 선택된 서비스들:", selectedServices);
       console.log("🔢 선택된 서비스 개수:", Object.values(selectedServices).filter(Boolean).length);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("📝 실제 동작 설명:");
+      console.log("   1️⃣ 선택된 서비스들을 DB에 저장만 함 (실행하지 않음)");
+      console.log("   2️⃣ 실제 분석 실행은 Orchestrator가 스케줄링으로 처리");
+      console.log("   3️⃣ 호출 API: POST /users/{userId}/wanted-services");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       
-      // 1단계: 사용자 원하는 서비스 설정 저장
-      console.log("📝 1단계: 사용자 원하는 서비스 설정 DB 저장 시작");
-      console.log("🔗 API 호출: updateUserWantedServices");
-      console.log("📤 전송 데이터:", selectedServices);
+      // 활성화된 서비스들을 새로운 API 형식에 맞게 변환
+      const activeServices = Object.entries(selectedServices)
+        .filter(([_, enabled]) => enabled)
+        .map(([serviceKey, _], index) => ({
+          service_name: serviceKey,
+          enabled: true,
+          priority: index + 1
+        }));
       
+      console.log("📊 변환된 서비스 데이터:", activeServices);
+      
+      if (activeServices.length === 0) {
+        throw new Error("선택된 서비스가 없습니다.");
+      }
+      
+      // 1단계: 사용자 원하는 서비스 설정 저장 및 활성화 (직접 호출)
+      console.log("🔄 1단계: 서비스 활성화 프로세스 시작 (User Service 직접 호출)");
       setActivationPhase('saving');
       
       try {
-        const saveStartTime = performance.now();
-        await api.updateUserWantedServices(userId, selectedServices);
-        const saveEndTime = performance.now();
-        console.log(`✅ 1단계 완료: 사용자 원하는 서비스 설정 저장 성공 (${(saveEndTime - saveStartTime).toFixed(0)}ms)`);
-      } catch (error) {
-        console.error("❌ 1단계 실패: 사용자 원하는 서비스 설정 저장 실패");
-        console.error("🔍 에러 상세:", error);
-        throw error;
-      }
-      
-      // 잠시 대기
-      console.log("⏳ 1-2단계 사이 대기 (1초)");
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // 2단계: 서비스 활성화 단계로 전환
-      console.log("🚀 2단계: 서비스 활성화 단계 시작");
-      setActivationPhase('activating');
-      
-      // 2-1. 활성화된 서비스들 추출
-      const activeServices = Object.entries(selectedServices)
-        .filter(([_, enabled]) => enabled)
-        .map(([key, _]) => key);
-      
-      console.log("📊 활성화할 서비스 목록:", activeServices);
-      console.log("📊 활성화할 서비스 개수:", activeServices.length);
-      
-      if (activeServices.length > 0) {
-        // 2-2. 실제 서비스 활성화 (orchestrator 포함)
-        const servicesWithOrchestrator = [...activeServices, 'orchestrator'];
-        console.log("🎯 최종 활성화 서비스 목록 (orchestrator 포함):", servicesWithOrchestrator);
-        console.log("🔗 API 호출: activateSelectedServices");
-        console.log("📤 전송 데이터 - userId:", userId);
-        console.log("📤 전송 데이터 - services:", servicesWithOrchestrator);
+        const startTime = performance.now();
+        const result = await api.activateSelectedServices(realUserId, activeServices);
+        const endTime = performance.now();
         
-        try {
-          const activateStartTime = performance.now();
-          const activationResult = await api.activateSelectedServices(userId, servicesWithOrchestrator);
-          const activateEndTime = performance.now();
-          console.log(`✅ 2단계 완료: 서비스 활성화 성공 (${(activateEndTime - activateStartTime).toFixed(0)}ms)`);
-          console.log("📋 활성화 결과:", activationResult);
-        } catch (error) {
-          console.error("❌ 2단계 실패: 서비스 활성화 실패");
-          console.error("🔍 에러 상세:", error);
-          console.error("🔍 에러 타입:", error.name);
-          console.error("🔍 에러 메시지:", error.message);
-          console.error("🔍 에러 스택:", error.stack);
-          if (error.response) {
-            console.error("🔍 서버 응답 상태:", error.response.status);
-            console.error("🔍 서버 응답 데이터:", error.response.data);
-          }
-          throw error;
-        }
+        console.log(`✅ 서비스 활성화 완료 (${(endTime - startTime).toFixed(0)}ms)`);
+        console.log("📋 활성화 결과:", result);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("🎯 API 호출 완료 결과:");
+        console.log("   ✅ DB에 사용자 서비스 설정 저장 완료");
+        console.log("   🔄 실제 서비스 실행은 Orchestrator가 별도로 처리");
+        console.log("   📅 Orchestrator 스케줄링에 따라 분석 서비스들이 실행됨");
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         
         // 활성화 진행 시뮬레이션
+        setActivationPhase('activating');
         console.log("⏳ 서비스 활성화 완료 대기 (3초)");
         await new Promise(resolve => setTimeout(resolve, 3000));
-      } else {
-        console.log("⚠️ 활성화할 서비스가 없습니다");
+        
+        // 완료 단계
+        setActivationPhase('complete');
+        console.log("🎉 서비스 활성화 프로세스 완료 (DB 저장만 완료, 실제 실행은 Orchestrator가 처리)");
+        
+        return { 
+          activeServices: activeServices.map(s => s.service_name),
+          result 
+        };
+        
+      } catch (error) {
+        console.error("❌ 서비스 활성화 실패:", error);
+        throw error;
       }
-      
-      // 3단계: 완료 단계
-      console.log("🎉 3단계: 서비스 활성화 프로세스 완료");
-      setActivationPhase('complete');
-      
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log("✅ 전체 서비스 활성화 프로세스 성공적으로 완료!");
-      console.log("📊 최종 결과 - 활성화된 서비스:", activeServices);
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      
-      return { activeServices };
     },
     onSuccess: (data) => {
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -203,7 +198,7 @@ const ServiceActivation = () => {
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       
       toast.success("🎉 모든 설정이 완료되었습니다!");
-      queryClient.invalidateQueries({ queryKey: ['userConfig', userId] });
+      queryClient.invalidateQueries({ queryKey: ['userConfig', realUserId] });
       
       // 3초 후 대시보드로 이동
       setTimeout(() => {
@@ -224,27 +219,30 @@ const ServiceActivation = () => {
       console.error("📋 요청 URL:", error.config?.url);
       console.error("📋 요청 방식:", error.config?.method);
       console.error("🔍 선택된 서비스:", selectedServices);
-      console.error("🔍 현재 사용자 정보:", JSON.parse(localStorage.getItem('user') || '{}'));
+      console.error("🔍 현재 사용자 정보:", { userId, realUserId });
 
       if (error.response?.status === 500) {
         console.error("💥 500 에러 - 서버 내부 오류!");
         console.error("🔍 가능한 원인:");
+        console.error("   - User Service 데이터베이스 연결 문제");
         console.error("   - Orchestrator 서비스가 실행되지 않음");
         console.error("   - API Gateway와 Orchestrator 간 통신 실패");
-        console.error("   - 데이터베이스 연결 문제");
-        console.error("🔧 해결 방안: Orchestrator 서비스 상태 및 API Gateway 로그를 확인하세요.");
+        console.error("🔧 해결 방안: User Service 및 Orchestrator 서비스 상태를 확인하세요.");
+        toast.error("❌ 서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
       } else if (error.response?.status === 404) {
         console.error("💥 404 에러 - API 엔드포인트가 존재하지 않습니다!");
         console.error("🔍 가능한 원인:");
-        console.error("   - API Gateway의 라우팅 설정 문제");
-        console.error("   - 서비스 엔드포인트 경로 오류");
-        console.error("🔧 해결 방안: API Gateway 라우팅 설정을 확인하세요.");
+        console.error("   - User Service API 엔드포인트 누락");
+        console.error("   - 잘못된 API 경로");
+        console.error("🔧 해결 방안: User Service API 구현을 확인하세요.");
+        toast.error("❌ API 엔드포인트를 찾을 수 없습니다.");
+      } else {
+        toast.error("❌ 서비스 활성화 중 오류가 발생했습니다.");
       }
 
       console.log("🔄 활성화 단계를 선택 단계로 되돌림");
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       
-      toast.error("❌ 서비스 활성화 중 오류가 발생했습니다.");
       setActivationPhase('selection');
     },
   });
@@ -256,7 +254,8 @@ const ServiceActivation = () => {
     console.log("🎯 '서비스 활성화' 버튼 클릭됨!");
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.log("🔍 현재 시각:", new Date().toLocaleString());
-    console.log("👤 사용자 ID:", userId);
+    console.log("👤 전화번호 기반 ID:", userId);
+    console.log("🆔 실제 DB 사용자 ID:", realUserId);
     console.log("📋 현재 선택된 서비스들:", selectedServices);
     
     // 최소 하나의 서비스 선택 확인
@@ -425,10 +424,10 @@ const ServiceActivation = () => {
                     <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
                   </div>
                   <h3 className="text-2xl font-bold text-gray-900 mb-4">
-                    모든 설정이 완료되었습니다! 🎉
+                    서비스 설정을 저장하는 중입니다 💾
                   </h3>
                   <p className="text-lg text-gray-600">
-                    서비스 설정을 저장하고 있습니다...
+                    선택하신 서비스 설정을 데이터베이스에 저장하고 있습니다...
                   </p>
                 </CardContent>
               </Card>

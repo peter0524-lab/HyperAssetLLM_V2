@@ -131,17 +131,49 @@ const Dashboard = () => {
   const executeNewsMutation = useMutation({ 
     mutationFn: api.executeNewsAnalysis,
     onSuccess: (data) => {
+      console.log("🔍 뉴스 분석 결과 전체:", data);
+      console.log("🔍 data.data:", data.data);
+      
+      // 🔍 종목 정보 콘솔 출력 (요청사항 2)
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("📊 뉴스 분석된 종목 정보:");
+      console.log(`📈 처리된 종목 수: ${data.data?.processed_stocks || 0}개`);
+      console.log(`📰 분석된 뉴스 수: ${data.data?.total_news || 0}개`);
+      console.log(`⏰ 분석 실행 시간: ${data.data?.execution_time ? new Date(data.data.execution_time).toLocaleString('ko-KR') : '알 수 없음'}`);
+      
+      // 처리된 종목 상세 정보 출력
+      if (data.data?.processed_stock_list && data.data.processed_stock_list.length > 0) {
+        console.log("📋 처리된 종목 상세:");
+        data.data.processed_stock_list.forEach((stock: any, index: number) => {
+          console.log(`  ${index + 1}. [${stock.code}] ${stock.name}`);
+        });
+      } else {
+        console.log("📋 처리된 종목 상세 정보를 찾을 수 없습니다.");
+      }
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+      // 텔레그램 실제 메시지 그대로 표시 (요청사항 1)
+      const actualTelegramMessage = data.data?.telegram_message || "텔레그램 메시지가 없습니다.";
+      
+      // 뉴스 메타데이터를 결과로 표시
+      const newsMetadata = [{
+        id: `news-meta-${Date.now()}`,
+        title: `📊 뉴스 분석 완료 (${data.data?.total_news || 0}개 뉴스 처리)`,
+        summary: `처리된 종목: ${data.data?.processed_stocks || 0}개\n분석 시간: ${data.data?.execution_time ? new Date(data.data.execution_time).toLocaleString('ko-KR') : '알 수 없음'}\n\n📱 텔레그램 알림 내용:\n${actualTelegramMessage}`,
+        timestamp: data.data?.execution_time || new Date().toISOString(),
+        impact_score: data.data?.total_news || 0,
+        reasoning: actualTelegramMessage
+      }];
+      
       setAnalysisResults(prev => ({
         ...prev,
-        news: data.data || []
+        news: newsMetadata
       }));
       setSelectedAnalysisTab('news');
-      toast.success("📰 뉴스 분석이 완료되었습니다!");
-      if (data.data && data.data.telegram_message) {
-        setTelegramMessageNews(data.data.telegram_message);
-      } else {
-        setTelegramMessageNews(null);
-      }
+      toast.success(`📰 뉴스 분석이 완료되었습니다! (${data.data?.total_news || 0}개 뉴스 처리)`);
+      
+      // 텔레그램 메시지는 실제 내용 그대로 설정
+      setTelegramMessageNews(actualTelegramMessage);
     },
     onError: (error) => {
       toast.error("❌ 뉴스 분석 실행 중 오류가 발생했습니다.");
@@ -152,19 +184,40 @@ const Dashboard = () => {
  const executeDisclosureMutation = useMutation({ 
     mutationFn: api.executeDisclosureAnalysis,
     onSuccess: (data) => {
+      console.log("🔍 공시 분석 결과 전체:", data);
+      console.log("🔍 data.data:", data.data);
+      
+      // 🔍 종목 정보 콘솔 출력 (요청사항 2)
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("📋 공시 분석된 종목 정보:");
+      console.log(`📈 처리된 종목 수: ${data.data?.processed_stocks || 0}개`);
+      console.log(`📋 분석된 공시 수: ${data.data?.total_disclosures || 0}개`);
+      console.log(`⏰ 분석 실행 시간: ${data.data?.execution_time ? new Date(data.data.execution_time).toLocaleString('ko-KR') : '알 수 없음'}`);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+      // 텔레그램 실제 메시지 그대로 표시 (요청사항 1)
+      const actualTelegramMessage = data.data?.telegram_message || "텔레그램 메시지가 없습니다.";
+      
+      // 공시 메타데이터를 결과로 표시
+      const disclosureMetadata = [{
+        id: `disclosure-meta-${Date.now()}`,
+        title: `📋 공시 분석 완료 (${data.data?.total_disclosures || 0}개 공시 처리)`,
+        summary: `처리된 종목: ${data.data?.processed_stocks || 0}개\n분석 시간: ${data.data?.execution_time ? new Date(data.data.execution_time).toLocaleString('ko-KR') : '알 수 없음'}\n\n📱 텔레그램 알림 내용:\n${actualTelegramMessage}`,
+        timestamp: data.data?.execution_time || new Date().toISOString(),
+        impact_score: data.data?.total_disclosures || 0,
+        reasoning: actualTelegramMessage
+      }];
+      
       setAnalysisResults(prev => ({
         ...prev,
-        disclosure: data.data || []
+        disclosure: disclosureMetadata
       }));
       setSelectedAnalysisTab('disclosure');
-      toast.success("📋 공시 분석이 완료되었습니다!");
-      if (data.data && data.data.telegram_message) {
-        console.log('Value being passed to setTelegramMessageDisclosure:', data.data.telegram_message);
-        setTelegramMessageDisclosure(data.data.telegram_message);
-      } else {
-        console.log('telegram_message not found in data.data or data.data is null/undefined for disclosure.');
-        setTelegramMessageDisclosure(null);
-      }
+      toast.success(`📋 공시 분석이 완료되었습니다! (${data.data?.total_disclosures || 0}개 공시 처리)`);
+      
+      // 텔레그램 메시지는 실제 내용 그대로 설정
+      console.log('Value being passed to setTelegramMessageDisclosure:', actualTelegramMessage);
+      setTelegramMessageDisclosure(actualTelegramMessage);
     },
     onError: (error) => {
       toast.error("❌ 공시 분석 실행 중 오류가 발생했습니다.");
@@ -175,17 +228,39 @@ const Dashboard = () => {
   const executeChartMutation = useMutation({ 
     mutationFn: api.executeChartAnalysis,
     onSuccess: (data) => {
+      console.log("🔍 차트 분석 결과 전체:", data);
+      console.log("🔍 data.data:", data.data);
+      
+      // 🔍 종목 정보 콘솔 출력 (요청사항 2)
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("📈 차트 분석된 종목 정보:");
+      console.log(`📈 처리된 종목 수: ${data.data?.processed_stocks || 0}개`);
+      console.log(`📊 분석된 차트 수: ${data.data?.total_charts || 0}개`);
+      console.log(`⏰ 분석 실행 시간: ${data.data?.execution_time ? new Date(data.data.execution_time).toLocaleString('ko-KR') : '알 수 없음'}`);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+      // 텔레그램 실제 메시지 그대로 표시 (요청사항 1)
+      const actualTelegramMessage = data.data?.telegram_message || "텔레그램 메시지가 없습니다.";
+      
+      // 차트 메타데이터를 결과로 표시
+      const chartMetadata = [{
+        id: `chart-meta-${Date.now()}`,
+        title: `📈 차트 분석 완료 (${data.data?.total_charts || 0}개 차트 처리)`,
+        summary: `처리된 종목: ${data.data?.processed_stocks || 0}개\n분석 시간: ${data.data?.execution_time ? new Date(data.data.execution_time).toLocaleString('ko-KR') : '알 수 없음'}\n\n📱 텔레그램 알림 내용:\n${actualTelegramMessage}`,
+        timestamp: data.data?.execution_time || new Date().toISOString(),
+        impact_score: data.data?.total_charts || 0,
+        reasoning: actualTelegramMessage
+      }];
+      
       setAnalysisResults(prev => ({
         ...prev,
-        chart: data.data || []
+        chart: chartMetadata
       }));
       setSelectedAnalysisTab('chart');
-      toast.success("📈 차트 분석이 완료되었습니다!");
-      if (data.data && data.data.telegram_message) {
-        setTelegramMessageChart(data.data.telegram_message);
-      } else {
-        setTelegramMessageChart(null);
-      }
+      toast.success(`📈 차트 분석이 완료되었습니다! (${data.data?.total_charts || 0}개 차트 처리)`);
+      
+      // 텔레그램 메시지는 실제 내용 그대로 설정
+      setTelegramMessageChart(actualTelegramMessage);
     },
     onError: (error) => {
       toast.error("❌ 차트 분석 실행 중 오류가 발생했습니다.");
@@ -196,17 +271,39 @@ const Dashboard = () => {
   const executeReportMutation = useMutation({ 
     mutationFn: api.executeReportAnalysis,
     onSuccess: (data) => {
+      console.log("🔍 리포트 분석 결과 전체:", data);
+      console.log("🔍 data.data:", data.data);
+      
+      // 🔍 종목 정보 콘솔 출력 (요청사항 2)
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("📊 리포트 분석된 종목 정보:");
+      console.log(`📈 처리된 종목 수: ${data.data?.processed_stocks || 0}개`);
+      console.log(`📊 분석된 리포트 수: ${data.data?.total_reports || 0}개`);
+      console.log(`⏰ 분석 실행 시간: ${data.data?.execution_time ? new Date(data.data.execution_time).toLocaleString('ko-KR') : '알 수 없음'}`);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+      // 텔레그램 실제 메시지 그대로 표시 (요청사항 1)
+      const actualTelegramMessage = data.data?.telegram_message || "텔레그램 메시지가 없습니다.";
+      
+      // 리포트 메타데이터를 결과로 표시
+      const reportMetadata = [{
+        id: `report-meta-${Date.now()}`,
+        title: `📊 리포트 분석 완료 (${data.data?.total_reports || 0}개 리포트 처리)`,
+        summary: `처리된 종목: ${data.data?.processed_stocks || 0}개\n분석 시간: ${data.data?.execution_time ? new Date(data.data.execution_time).toLocaleString('ko-KR') : '알 수 없음'}\n\n📱 텔레그램 알림 내용:\n${actualTelegramMessage}`,
+        timestamp: data.data?.execution_time || new Date().toISOString(),
+        impact_score: data.data?.total_reports || 0,
+        reasoning: actualTelegramMessage
+      }];
+      
       setAnalysisResults(prev => ({
         ...prev,
-        report: data.data || []
+        report: reportMetadata
       }));
       setSelectedAnalysisTab('report');
-      toast.success("📊 리포트 분석이 완료되었습니다!");
-      if (data.data && data.data.telegram_message) {
-        setTelegramMessageReport(data.data.telegram_message);
-      } else {
-        setTelegramMessageReport(null);
-      }
+      toast.success(`📊 리포트 분석이 완료되었습니다! (${data.data?.total_reports || 0}개 리포트 처리)`);
+      
+      // 텔레그램 메시지는 실제 내용 그대로 설정
+      setTelegramMessageReport(actualTelegramMessage);
     },
     onError: (error) => {
       toast.error("❌ 리포트 분석 실행 중 오류가 발생했습니다.");

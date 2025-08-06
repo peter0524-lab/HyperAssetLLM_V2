@@ -16,7 +16,7 @@ const gatewayClient = axios.create({
 // User Service 직접 호출용 클라이언트
 const userServiceClient = axios.create({
   baseURL: USER_SERVICE_URL,
-  timeout: 30000, // 30초 타임아웃 (직접 호출이므로 빠름)
+  timeout: 60000, // 60초 타임아웃 (DB 응답 지연 고려)
   headers: {
     'Content-Type': 'application/json',
   },
@@ -272,12 +272,40 @@ export const api = {
 
   // ===== 분석 서비스 실행 (API Gateway 경유) =====
   async executeNewsAnalysis(): Promise<AnalysisResult> {
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("🔄 뉴스 분석 실행 시작");
+    console.log("🔗 요청 URL: /api/news/execute");
+    console.log("📤 요청 방식: POST");
+    console.log("🏠 Base URL:", gatewayClient.defaults.baseURL);
+    
     try {
+      const startTime = performance.now();
       const response = await gatewayClient.post('/api/news/execute');
+      const endTime = performance.now();
+      
+      console.log(`✅ 뉴스 분석 성공! (${(endTime - startTime).toFixed(0)}ms)`);
+      console.log("📋 응답 데이터:", response.data);
+      console.log("📋 응답 상태:", response.status);
+      console.log("📋 응답 헤더:", response.headers);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      
       return response.data;
     } catch (error: any) {
-      console.error('뉴스 분석 에러:', error);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.error('❌ 뉴스 분석 에러!');
+      console.error('🔍 에러 상세 정보:');
+      console.error('📋 에러 메시지:', error.message);
+      console.error('📋 에러 코드:', error.code);
+      console.error('📋 응답 상태:', error.response?.status);
+      console.error('📋 응답 데이터:', error.response?.data);
+      console.error('📋 응답 헤더:', error.response?.headers);
+      console.error('📋 요청 설정:', error.config);
+      console.error('🔍 전체 에러 객체:', error);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      
       if (error.response?.status === 500) {
+        console.error('💥 서버 내부 에러 (500) 발생!');
+        console.error('🔧 임시 해결책: 데모 응답 반환');
         return { status: 'completed', message: '뉴스 분석 완료 (데모)', timestamp: new Date().toISOString() };
       }
       throw error;
@@ -647,14 +675,27 @@ export const api = {
     try {
       // 1단계: 사용자 원하는 서비스 DB에 저장 (User Service 직접 호출)
       console.log("🔄 1단계: 사용자 원하는 서비스 DB 저장 중...");
+      
+      // ✅ User Service API가 기대하는 형식으로 데이터 변환
       const serviceSettings = {
-        services: services.map(service => ({
-          service_name: service.service_name,
-          enabled: service.enabled,
-          priority: service.priority
-        }))
+        news_service: false,
+        disclosure_service: false,
+        report_service: false,
+        chart_service: false,
+        flow_service: false
       };
-      console.log("📤 전송할 서비스 설정:", serviceSettings);
+      
+      // 활성화된 서비스만 true로 설정
+      services.forEach(service => {
+        if (service.enabled) {
+          const serviceName = service.service_name as keyof typeof serviceSettings;
+          if (serviceName in serviceSettings) {
+            serviceSettings[serviceName] = true;
+          }
+        }
+      });
+      
+      console.log("📤 전송할 서비스 설정 (올바른 형식):", serviceSettings);
       console.log(`🔗 직접 호출 URL: /users/${userId}/wanted-services`);
       console.log(`📤 요청 방식: POST`);
 
