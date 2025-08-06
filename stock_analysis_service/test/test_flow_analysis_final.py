@@ -23,9 +23,13 @@ class FlowAnalysisTest:
     """Flow Analysis Service 핵심 테스트"""
     
     def __init__(self):
-        self.mysql_client = get_mysql_client()
-        self.service = None
-        self.test_stock = "006800"  # 미래에셋증권
+        self.mysql_client = get_mysql_client("mysql")
+        self.mysql2_client = get_mysql_client("mysql2")
+        self.service = FlowAnalysisService()
+        self.test_stock_code = "006800"
+        self.test_stock_name = "미래에셋증권"
+        self.test_user_id = "test_user_flow_final"
+        self.test_telegram_chat_id = "1234567890"
         
     async def run_all_tests(self):
         """모든 핵심 테스트 실행"""
@@ -143,7 +147,7 @@ class FlowAnalysisTest:
                 return False
             
             # DB에서 저장 확인
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn:
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
                 cursor.execute("""
                     SELECT * FROM eod_flows 
@@ -187,7 +191,7 @@ class FlowAnalysisTest:
             await self.service.handle_institutional_trigger(self.test_stock, test_data)
             
             # 저장 확인
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn:
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
                 cursor.execute("""
                     SELECT COUNT(*) as cnt FROM pattern_signals 

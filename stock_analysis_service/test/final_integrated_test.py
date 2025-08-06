@@ -37,7 +37,8 @@ class FinalIntegratedTester:
     """통합 최종 테스터"""
     
     def __init__(self):
-        self.mysql_client = get_mysql_client()
+        self.mysql_client = get_mysql_client("mysql")
+        self.mysql2_client = get_mysql_client("mysql2")
         self.telegram_bot = TelegramBotClient()
         self.kis_client = KISAPIClient()
         self.test_stock_code = "006800"  # 미래에셋증권
@@ -323,7 +324,7 @@ class FinalIntegratedTester:
             }
             
             # 데이터베이스에 삽입
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn:
                 cursor = conn.cursor()
                 query = """
                     INSERT INTO disclosure_history 
@@ -368,7 +369,7 @@ class FinalIntegratedTester:
                     volume = 2000000 + i * 10000
                 
                 # 데이터베이스에 삽입
-                with self.mysql_client.get_connection() as conn:
+                with self.mysql2_client.get_connection() as conn:
                     cursor = conn.cursor()
                     query = """
                         INSERT INTO chart_analysis_results 
@@ -417,7 +418,7 @@ class FinalIntegratedTester:
                 }
                 
                 # 데이터베이스에 삽입
-                with self.mysql_client.get_connection() as conn:
+                with self.mysql2_client.get_connection() as conn:
                     cursor = conn.cursor()
                     query = """
                         INSERT INTO eod_flows 
@@ -448,7 +449,7 @@ class FinalIntegratedTester:
         try:
             logger.info("🧹 테스트 데이터 정리 시작")
             
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn:
                 cursor = conn.cursor()
                 
                 # 뉴스 데이터 삭제

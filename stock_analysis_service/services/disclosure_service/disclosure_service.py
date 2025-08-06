@@ -1,3 +1,4 @@
+# type: ignore
 """
 공시 서비스 (Disclosure Service)
 - DART API를 통한 공시 정보 수집
@@ -20,7 +21,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 # from services.disclosure_service.gemini_analyzer import GeminiDisclosureAnalyzer  # 더 이상 사용하지 않음
 from services.chart_service.chart_service import ChartAnalysisService
-from shared.database.mysql_client import get_mysql_client
+from shared.database.mysql_client import get_mysql_client, cleanup_mysql_client # get_mysql_client 임포트 방식 변경
 #from shared.database.vector_db import VectorDBClient
 from shared.llm.llm_manager import llm_manager
 from shared.apis.dart_api import DARTAPIClient
@@ -58,7 +59,8 @@ class DisclosureService:
         self.user_config_loader = None  # 비동기로 초기화됨
         self.personalized_configs = {}  # 사용자별 개인화 설정 캐시
         
-        self.mysql_client = get_mysql_client()
+        self.mysql_client = get_mysql_client("mysql") # 메인 DB 클라이언트
+        self.mysql2_client = get_mysql_client("mysql2") # 보조 DB 클라이언트 (HyperAsset2)
         #self.vector_db = VectorDBClient()
         self.llm_manager = llm_manager
         self.dart_client = DARTAPIClient()
@@ -112,7 +114,8 @@ class DisclosureService:
         """공시가 이미 DB에 존재하는지 여부만 확인"""
         try:
             query = "SELECT 1 FROM disclosure_history WHERE rcept_no = %s LIMIT 1"
-            result = await self.mysql_client.fetch_one_async(query, (rcept_no,))
+            # disclosure_history 테이블은 mysql2_client를 사용
+            result = await self.mysql2_client.fetch_one_async(query, (rcept_no,))
             return result is not None #None이면 False, 있으면 True
         except Exception as e:
             self.logger.error(f"공시 처리 여부 확인 실패: {e}")
@@ -163,7 +166,8 @@ class DisclosureService:
                 ORDER BY rcept_dt DESC
                 LIMIT 1
             """
-            result = await self.mysql_client.fetch_one_async(query, (report_nm, cutoff_dt))
+            # disclosure_history 테이블은 mysql2_client를 사용
+            result = await self.mysql2_client.fetch_one_async(query, (report_nm, cutoff_dt))
 
             if result:
                 return result
@@ -175,7 +179,10 @@ class DisclosureService:
             return None
 
     async def save_disclosure_data(
-        self, disclosure: Dict, analysis: Dict, 
+        self,
+        disclosure: Dict,
+        analysis: Dict,
+        
     ):
         """공시 데이터 저장 이게 메인"""
         try:
@@ -198,7 +205,8 @@ class DisclosureService:
                 keywords = VALUES(keywords);
             """
 
-            await self.mysql_client.execute_query_async(
+            # disclosure_history 테이블은 mysql2_client를 사용
+            await self.mysql2_client.execute_query_async(
                 insert_query,
                 (
                     disclosure.get("rcept_no", ""),
@@ -305,35 +313,35 @@ class DisclosureService:
                     case_date = case.get('rcept_dt', '')
                     is_last = i == len(similar_cases[:1]) - 1
                     
-                    message += f"{'└' if is_last else '├'} 📜 <b>유사 공시</b>: {case.get('report_nm', '')}\n"
+                    message += f"{'' if is_last else '├'} 📜 <b>유사 공시</b>: {case.get('report_nm', '')}\n"
 
-                    message += f"{'  ' if is_last else '│ '}  📅 <b>공시일</b>: {case_date}\n"
+                    message += f"{'' if is_last else '│ '}  📅 <b>공시일</b>: {case_date}\n"
 
                     
                     case_summary = case.get('summary', '')
                     if case_summary:
-                        message += f"{'  ' if is_last else '│ '}   <b>요약</b>: {case_summary[:200]}...\n"
+                        message += f"{'' if is_last else '│ '}   <b>요약</b>: {case_summary[:200]}...\n"
                     else:
-                        message += f"{'  ' if is_last else '│ '}   <i>요약 없음</i>\n"
+                        message += f"{'' if is_last else '│ '}   <i>요약 없음</i>\n"
                     
                     case_keywords = case.get('keywords')
                     if case_keywords:
-                        message += f"{'  ' if is_last else '│ '}   <b>키워드</b>: {case_keywords}\n"
+                        message += f"{'' if is_last else '│ '}   <b>키워드</b>: {case_keywords}\n"
                     else:
-                        message += f"{'  ' if is_last else '│ '}   <i>키워드 없음</i>\n"
+                        message += f"{'' if is_last else '│ '}   <i>키워드 없음</i>\n"
 
 
                     # 주가 데이터 조회
                     five_day_prices = await self.chart_service.get_historical_prices(stock_code, case_date, 5)
                     
                     if five_day_prices:
-                        message += f"{'  ' if is_last else '│ '}  📈 <b>이후 5일 주가</b>:\n"
+                        message += f"{'' if is_last else '│ '}  📈 <b>이후 5일 주가</b>:\n"
                         
                         for j, price_data in enumerate(five_day_prices):
                             formatted_date = price_data["date"]
                             close_price = price_data["close"]
                             inner_prefix = "└" if j == len(five_day_prices) - 1 else "├"
-                            message += f"{'  ' if is_last else '│ '}     {inner_prefix} <code>{formatted_date}</code>: <b>{close_price:,.0f}원</b>\n"
+                            message += f"{'' if is_last else '│ '}     {inner_prefix} <code>{formatted_date}</code>: <b>{close_price:,.0f}원</b>\n"
 
                         # 수익률 계산
                         if len(five_day_prices) >= 2:
@@ -342,13 +350,13 @@ class DisclosureService:
                             return_rate = ((last_price - first_price) / first_price) * 100
                             
                             if return_rate > 0:
-                                message += f"{'  ' if is_last else '│ '}   <b>5일 수익률</b>: <code>+{return_rate:.2f}%</code> ⬆️\n"
+                                message += f"{'' if is_last else '│ '}   <b>5일 수익률</b>: <code>+{return_rate:.2f}%</code> ⬆️\n"
                             elif return_rate < 0:
-                                message += f"{'  ' if is_last else '│ '}   <b>5일 수익률</b>: <code>{return_rate:.2f}%</code> ⬇️\n"
+                                message += f"{'' if is_last else '│ '}   <b>5일 수익률</b>: <code>{return_rate:.2f}%</code> ⬇️\n"
                             else:
-                                message += f"{'  ' if is_last else '│ '}   <b>5일 수익률</b>: <code>{return_rate:.2f}%</code> ➡️\n"
+                                message += f"{'' if is_last else '│ '}   <b>5일 수익률</b>: <code>{return_rate:.2f}%</code> ➡️\n"
                     else:
-                        message += f"{'  ' if is_last else '│ '}   <i>과거 참조 데이터 없음</i>\n"
+                        message += f"{'' if is_last else '│ '}   <i>과거 참조 데이터 없음</i>\n"
 
             message += f"\n━━━━━━━━━━━━━━━━━━━\n"
             message += f"⚠️ <i>AI 분석 정보이며, 투자 참고용입니다.</i>"
@@ -481,7 +489,8 @@ class DisclosureService:
         """종목 코드로 종목명 조회 (없으면 '미래에셋증권' 반환)"""
         try:
             query = "SELECT corp_name FROM disclosure_history WHERE stock_code = %s"
-            result = await self.mysql_client.fetch_one_async(query, (stock_code,))
+            # disclosure_history 테이블은 mysql2_client를 사용
+            result = await self.mysql2_client.fetch_one_async(query, (stock_code,))
             
             if result and result['corp_name']:
                 return result['corp_name']
@@ -726,7 +735,8 @@ class DisclosureService:
             raise
         finally:
             # 리소스 정리
-            self.mysql_client.close()
+            await self.mysql_client.close()
+            await self.mysql2_client.close()
 
     async def run_service(self):
         """공시 서비스 실행"""
@@ -756,7 +766,8 @@ class DisclosureService:
             raise
         finally:
             # 리소스 정리
-            self.mysql_client.close()
+            await self.mysql_client.close()
+            await self.mysql2_client.close()
 
 # 서비스 인스턴스 생성 (지연 초기화)
 disclosure_service = None
@@ -1172,8 +1183,7 @@ async def test_process_pipeline_function():
         print(f"--- 테스트 중 오류 발생: {e} ---")
     finally:
         # 리소스 정리 (필요한 경우)
-        if 'service' in locals() and hasattr(service, 'mysql_client'):
-            service.mysql_client.close()
+        cleanup_mysql_client()
         print("--- Disclosure Service 파이프라인 테스트 종료 ---")
 
 

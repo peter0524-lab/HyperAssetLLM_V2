@@ -57,7 +57,8 @@ class FlowAnalysisService:
         self.user_config_loader = None  # 비동기로 초기화됨
         self.personalized_configs = {}  # 사용자별 개인화 설정 캐시
         
-        self.mysql_client = get_mysql_client()
+        self.mysql_client = get_mysql_client("mysql")
+        self.mysql2_client = get_mysql_client("mysql2")
         self.llm_manager = llm_manager
         self.telegram_bot = TelegramBotClient()
 
@@ -125,7 +126,7 @@ class FlowAnalysisService:
         try:
             # force_init이 False인 경우, 테이블 존재 여부 확인
             if not force_init:
-                with self.mysql_client.get_connection() as conn:
+                with self.mysql2_client.get_connection() as conn: # mysql2_client 사용 (pattern_signals 테이블 존재 여부 확인)
                     cursor = conn.cursor()
                     cursor.execute("SHOW TABLES LIKE 'pattern_signals'")
                     if cursor.fetchone():
@@ -141,7 +142,7 @@ class FlowAnalysisService:
                 # SQL 문 분리 및 실행
                 statements = [stmt.strip() for stmt in schema_sql.split(';') if stmt.strip()]
                 
-                with self.mysql_client.get_connection() as conn:
+                with self.mysql2_client.get_connection() as conn: # mysql2_client 사용 (flow_analysis_schema.sql 실행)
                     cursor = conn.cursor()
                     for statement in statements:
                         if statement and not statement.startswith('--'):
@@ -197,7 +198,7 @@ class FlowAnalysisService:
                     updated_at = CURRENT_TIMESTAMP
             """
 
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn: # mysql2_client 사용 (eod_flows 테이블 저장)
                 cursor = conn.cursor()
                 cursor.execute(query, (
                     formatted_date, stock_code,
@@ -225,7 +226,7 @@ class FlowAnalysisService:
                 LIMIT %s
             """
 
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn: # mysql2_client 사용 (eod_flows 테이블 조회)
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
                 cursor.execute(query, (stock_code, self.institutional_trigger_days))
                 results = cursor.fetchall()
@@ -317,7 +318,7 @@ class FlowAnalysisService:
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
 
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn: # mysql2_client 사용 (program_flows 테이블 저장)
                 cursor = conn.cursor()
                 cursor.execute(query, (
                     datetime.now(), stock_code, net_volume, net_value, 
@@ -392,7 +393,7 @@ class FlowAnalysisService:
             trigger_json = json.dumps(trigger_data)
             current_time = datetime.now()
             
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn: # mysql2_client 사용 (pattern_signals 테이블 저장 - rt_prog_strong)
                 cursor = conn.cursor()
                 cursor.execute(query, (
                     current_time, stock_code, True,
@@ -428,7 +429,7 @@ class FlowAnalysisService:
             trigger_json = json.dumps(trigger_data)
             current_time = datetime.now()
             
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn: # mysql2_client 사용 (pattern_signals 테이블 저장 - daily_inst_strong)
                 cursor = conn.cursor()
                 cursor.execute(query, (
                     current_time, stock_code, True,
@@ -471,7 +472,7 @@ class FlowAnalysisService:
                 LIMIT 1
             """
 
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn: # mysql2_client 사용 (pattern_signals 및 eod_flows 테이블 조회)
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
                 cursor.execute(query, (stock_code, stock_code))
                 result = cursor.fetchone()
@@ -489,7 +490,7 @@ class FlowAnalysisService:
                 future_result = cursor.fetchone()
                 
                 ret5d = 0.0
-                if future_result and result["close_price"]:
+                if future_result and result["close_price"] is not None:
                     ret5d = (future_result["close_price"] - result["close_price"]) / result["close_price"]
 
                 return {
@@ -524,7 +525,7 @@ class FlowAnalysisService:
                 AND inst_net > 0
             """
 
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn: # mysql2_client 사용 (eod_flows 테이블 조회)
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
                 cursor.execute(query, (stock_code,))
                 result = cursor.fetchone()
@@ -569,7 +570,7 @@ class FlowAnalysisService:
                 LIMIT 1
             """
 
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn: # mysql2_client 사용 (program_flows 테이블 조회)
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
                 cursor.execute(query, (stock_code, stock_code))
                 result = cursor.fetchone()
@@ -830,7 +831,7 @@ class FlowAnalysisService:
                         AND trade_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
                         """
                         
-                        result = await self.mysql_client.fetch_one_async(query, (stock_code, period["days"]))
+                        result = await self.mysql2_client.fetch_one_async(query, (stock_code, period["days"])) # mysql2_client 사용 (eod_flows 테이블 조회)
                         period_time = time.time() - period_start_time
                         
                         if result:
@@ -1458,6 +1459,18 @@ async def force_eod():
                 self.user_config_loader.clear_cache()
             self.logger.debug("🧹 모든 사용자 설정 캐시 클리어")
 
+    def cleanup_mysql_clients(self):
+        """MySQL 클라이언트 연결 종료"""
+        try:
+            if self.mysql_client:
+                self.mysql_client.close()
+                self.logger.info("✅ mysql_client 연결 종료")
+            if self.mysql2_client:
+                self.mysql2_client.close()
+                self.logger.info("✅ mysql2_client 연결 종료")
+        except Exception as e:
+            self.logger.error(f"❌ MySQL 클라이언트 연결 종료 실패: {e}")
+
 # === 메인 실행 ===
 
 async def main():
@@ -1486,6 +1499,9 @@ async def main():
         import traceback
         traceback.print_exc()
         sys.exit(1)
+    finally:
+        if 'service' in locals() and service:
+            service.cleanup_mysql_clients()
 
 
 if __name__ == "__main__":

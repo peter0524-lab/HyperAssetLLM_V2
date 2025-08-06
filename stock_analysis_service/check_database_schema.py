@@ -24,7 +24,8 @@ def check_database_schema():
             print(f"{row['Field']} - {row['Type']}")
         
         print("\n=== 공시 테이블 스키마 ===")
-        result = client.execute_query("DESCRIBE disclosure_history")
+        client2 = get_mysql_client("mysql2")
+        result = client2.execute_query("DESCRIBE disclosure_history")
         for row in result:
             print(f"{row['Field']} - {row['Type']}")
             

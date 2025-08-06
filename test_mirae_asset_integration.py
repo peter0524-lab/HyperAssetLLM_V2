@@ -34,7 +34,8 @@ class MiraeAssetIntegrationTest:
     
     def __init__(self):
         self.config = get_config()
-        self.mysql_client = MySQLClient()
+        self.mysql_client = MySQLClient("mysql")
+        self.mysql2_client = MySQLClient("mysql2")
         self.telegram_bot = TelegramBotClient()
         
         # 미래에셋증권 정보
@@ -353,6 +354,7 @@ class MiraeAssetIntegrationTest:
             return False
         finally:
             await self.mysql_client.close()
+            await self.mysql2_client.close() # 이 줄을 추가
 
 async def main():
     """메인 실행 함수"""

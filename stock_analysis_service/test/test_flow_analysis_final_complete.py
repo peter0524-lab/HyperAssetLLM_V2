@@ -29,7 +29,8 @@ class FinalCompleteFlowTest:
     """Flow Analysis Service 최종 완전 통합 테스트"""
     
     def __init__(self):
-        self.mysql_client = get_mysql_client()
+        self.mysql_client = get_mysql_client("mysql")
+        self.mysql2_client = get_mysql_client("mysql2")
         self.service = None
         self.test_stocks = ["006800", "005930", "000660"]  # 미래에셋, 삼성전자, SK하이닉스
         
@@ -556,7 +557,7 @@ class FinalCompleteFlowTest:
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=60)
         
-        with self.mysql_client.get_connection() as conn:
+        with self.mysql2_client.get_connection() as conn:
             cursor = conn.cursor()
             
             for stock_code in self.test_stocks:
@@ -628,7 +629,7 @@ class FinalCompleteFlowTest:
         """실제 프로그램 매매 패턴 데이터 생성"""
         generated_count = 0
         
-        with self.mysql_client.get_connection() as conn:
+        with self.mysql2_client.get_connection() as conn:
             cursor = conn.cursor()
             
             # 기존 프로그램 데이터 삭제
@@ -705,7 +706,7 @@ class FinalCompleteFlowTest:
         """과거 패턴 신호 데이터 생성"""
         generated_count = 0
         
-        with self.mysql_client.get_connection() as conn:
+        with self.mysql2_client.get_connection() as conn:
             cursor = conn.cursor()
             
             for stock_code in self.test_stocks:
@@ -748,7 +749,7 @@ class FinalCompleteFlowTest:
     async def _verify_generated_data_integrity(self) -> bool:
         """생성된 데이터 무결성 검증"""
         try:
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn:
                 cursor = conn.cursor()
                 
                 # 각 테이블별 데이터 개수 확인
@@ -774,7 +775,7 @@ class FinalCompleteFlowTest:
     async def _cleanup_test_data(self):
         """테스트 데이터 정리"""
         try:
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn:
                 cursor = conn.cursor()
                 
                 # 테스트 종목 데이터만 삭제

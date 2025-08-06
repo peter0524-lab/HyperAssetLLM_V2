@@ -1,3 +1,4 @@
+# type: ignore
 """
 차트 분석 서비스 (Chart Service)
 - KIS API를 통한 차트 데이터 수집
@@ -27,7 +28,7 @@ import time
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
-from shared.database.mysql_client import MySQLClient
+from shared.database.mysql_client import get_mysql_client, cleanup_mysql_client # get_mysql_client 임포트 방식 변경
 from shared.apis.kis_api import KISAPIClient
 from shared.apis.telegram_api import TelegramBotClient
 from shared.user_config.user_config_manager import UserConfigManager
@@ -57,7 +58,8 @@ class ChartAnalysisService:
         self.logger.info(f"설정 로드: {self.config}")
 
         # 클라이언트 초기화
-        self.mysql_client = MySQLClient()
+        self.mysql_client = get_mysql_client("mysql") # 메인 DB 클라이언트
+        self.mysql2_client = get_mysql_client("mysql2") # 보조 DB 클라이언트 (HyperAsset2)
         self.kis_client = KISAPIClient()
         self.user_config_manager = UserConfigManager()
         self.llm_client = HyperCLOVAClient()  # 기본 LLM 클라이언트
@@ -218,7 +220,8 @@ class ChartAnalysisService:
                 INDEX idx_stock_date (stock_code, date)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
-            await self.mysql_client.execute_query_async(query)
+            # chart_analysis_results 테이블은 mysql2_client를 사용
+            await self.mysql2_client.execute_query_async(query)
             self.logger.info("차트 분석 테이블 생성 완료")
         except Exception as e:
             self.logger.error(f"차트 분석 테이블 생성 실패: {e}")
@@ -592,7 +595,8 @@ class ChartAnalysisService:
                 json.dumps(details, ensure_ascii=False)
             )
 
-            await self.mysql_client.execute_query_async(query, params)
+            # chart_analysis_results 테이블은 mysql2_client를 사용
+            await self.mysql2_client.execute_query_async(query, params)
             self.logger.info(f"조건 만족 결과 저장 완료: {stock_code}")
 
         except Exception as e:
@@ -815,7 +819,7 @@ class ChartAnalysisService:
             if current_volume > avg_volume.iloc[-1] * 3:
                 result = {
                     "condition": True,
-                    "details": f"거래량({int(current_volume):,}주)이 20일 평균({int(avg_volume.iloc[-1]):,}주) 대비 {float(current_volume/avg_volume.iloc[-1]):.1f}배 급증"
+                    "details": f"거래량({int(current_volume):,}"
                 }
                 return self._convert_numpy_types(result)
 
@@ -944,7 +948,9 @@ class ChartAnalysisService:
         finally:
             self.is_running = False
             await self.stop_monitoring()
+            # 모든 MySQL 클라이언트 정리
             await self.mysql_client.close()
+            await self.mysql2_client.close()
 
     async def _run_market_hours_mode(self):
         """장중 모드: 실시간 웹소켓 + 5분마다 조건 체크"""
@@ -1020,7 +1026,7 @@ class ChartAnalysisService:
                     raise ValueError("stocks_config가 비어있음")
             except Exception as e:
                 self.logger.warning(f"⚠️ 종목 설정 불러오기 실패 또는 비어있음: {e} → 기본 종목으로 대체")
-                stock_items = [("006800", {})]
+                stock_items = [("006800", {})
                 
                 
             self.logger.info(f"🔍 전체 종목 조건 체크 시작: {len(stock_items)}개 종목")
@@ -1147,7 +1153,8 @@ class ChartAnalysisService:
             
             self.logger.info(f"SQL 쿼리: {query}")
             self.logger.info(f"매개변수: stock_code={stock_code}, cutoff_date={cutoff_date_str}")
-            result = await self.mysql_client.execute_query_async(query, (stock_code, cutoff_date_str), fetch=True)
+            # chart_analysis_results 테이블은 mysql2_client를 사용
+            result = await self.mysql2_client.execute_query_async(query, (stock_code, cutoff_date_str), fetch=True)
             
             self.logger.info(f"쿼리 결과: {result}")
             if result and len(result) > 0:
@@ -1455,8 +1462,8 @@ class ChartAnalysisService:
                 if retry_count < max_retries:
                     delay = min(300, base_delay * (2 ** retry_count))  # 최대 5분까지 대기
                     self.logger.info(f"{stock_code} 재연결 시도 {retry_count + 1}/{max_retries} - {delay}초 후 시도")
-                    await asyncio.sleep(delay)
                     retry_count += 1
+                    await asyncio.sleep(delay)
                 else:
                     self.logger.error(f"{stock_code} 최대 재시도 횟수 초과. 1분 후 재시도 카운트 초기화")
                     retry_count = 0
@@ -1476,9 +1483,11 @@ class ChartAnalysisService:
         stock_name = results.get("stock_name")
         if not stock_name:
             try:
+                # stock_info 테이블은 mysql_client를 사용
                 stock_info = await self.mysql_client.execute_query_async(
                     "SELECT company_name FROM stock_info WHERE stock_code = %s",
-                    (stock_code,), fetch=True
+                    (stock_code,),
+                    fetch=True
                 )
                 stock_name = stock_info[0]["company_name"] if stock_info else stock_code
             except:
@@ -1516,16 +1525,16 @@ class ChartAnalysisService:
             kor_name, emoji = condition_info.get(name, (name, "📊"))
             is_last = i == len(conditions) - 1
             
-            message += f"{'└' if is_last else '├'} {emoji} <b>{kor_name}</b>\n"
-            message += f"{'  ' if is_last else '│ '}  💬 {details}\n"
+            message += f"{'' if is_last else ''} {emoji} <b>{kor_name}</b>\n"
+            message += f"{'' if is_last else ''}  💬 {details}\n"
             
             # 과거 사례 5일 주가 표시
             five_day_prices = condition.get("five_day_prices", [])
             reference_date = condition.get("reference_date")
             
             if reference_date and five_day_prices:
-                message += f"{'  ' if is_last else '│ '}  📅 <b>과거 참조</b>: <code>{reference_date}</code>\n"
-                message += f"{'  ' if is_last else '│ '}  📈 <b>이후 5일 주가</b>:\n"
+                message += f"{'' if is_last else ''}  📅 <b>과거 참조</b>: <code>{reference_date}</code>\n"
+                message += f"{'' if is_last else ''}  📈 <b>이후 5일 주가</b>:\n"
                 
                 for j, price_data in enumerate(five_day_prices):
                     date_str = price_data["date"]
@@ -1538,7 +1547,7 @@ class ChartAnalysisService:
                         formatted_date = date_str
                     
                     inner_prefix = "└" if j == len(five_day_prices) - 1 else "├"
-                    message += f"{'  ' if is_last else '│ '}     {inner_prefix} <code>{formatted_date}</code>: <b>{close_price:,}원</b>\n"
+                    message += f"{'' if is_last else ''}     {inner_prefix} <code>{formatted_date}</code>: <b>{close_price:,}원</b>\n"
                 
                 # 📊 수익률 계산
                 if len(five_day_prices) >= 2:
@@ -1547,13 +1556,13 @@ class ChartAnalysisService:
                     return_rate = ((last_price - first_price) / first_price) * 100
                     
                     if return_rate > 0:
-                        message += f"{'  ' if is_last else '│ '}  📊 <b>5일 수익률</b>: <code>+{return_rate:.2f}%</code> 🔥⬆️\n"
+                        message += f"{'' if is_last else ''}  📊 <b>5일 수익률</b>: <code>+{return_rate:.2f}%</code> 🔥⬆️\n"
                     elif return_rate < 0:
-                        message += f"{'  ' if is_last else '│ '}  📊 <b>5일 수익률</b>: <code>{return_rate:.2f}%</code> 🧊⬇️\n"
+                        message += f"{'' if is_last else ''}  📊 <b>5일 수익률</b>: <code>{return_rate:.2f}%</code> 🧊⬇️\n"
                     else:
-                        message += f"{'  ' if is_last else '│ '}  📊 <b>5일 수익률</b>: <code>{return_rate:.2f}%</code> ➡️\n"
+                        message += f"{'' if is_last else ''}  📊 <b>5일 수익률</b>: <code>{return_rate:.2f}%</code> ➡️\n"
             else:
-                message += f"{'  ' if is_last else '│ '}  🔍 <i>과거 참조 데이터 없음</i>\n"
+                message += f"{'' if is_last else ''}  🔍 <i>과거 참조 데이터 없음</i>\n"
             
             if not is_last:
                 message += f"│\n"
@@ -1823,7 +1832,6 @@ async def save_latest_signal(message: str):
         "service": "disclosure"
     }
     
-    
 def should_execute_now() -> Tuple[bool, str]:
     """현재 실행할 시간인지 판단 (차트 서비스 전용 로직)"""
     global last_execution_time
@@ -1861,7 +1869,7 @@ def should_execute_now() -> Tuple[bool, str]:
         return True, f"{interval_name} - 마지막 실행: {last_execution_time.strftime('%H:%M')}"
     else:
         remaining = int(required_interval - time_diff)
-        return False, f"{interval_name} - {remaining}초 후 실행 가능"
+        return False, f"{interval_name} - {remaining}초 후 실행 가능}"
 
 async def execute_chart_analysis() -> Dict:
     """차트 분석 실행 (오케스트레이터 호출용)"""
@@ -1998,10 +2006,8 @@ if __name__ == "__main__":
             # 분석 서비스 모드
             asyncio.run(main())
         else:
-            # FastAPI 서버 모드 (기본값)
-            print("🚀 Chart Service FastAPI 서버 시작 (포트: 8003)")
+            # FastAPI 서버 모드
             run_fastapi()
-    except KeyboardInterrupt:
-        print("\n프로그램이 사용자에 의해 종료되었습니다.")
-    except Exception as e:
-        print(f"\n프로그램 실행 중 오류 발생: {e}")
+    finally:
+        # 프로그램 종료 시 모든 MySQL 클라이언트 정리
+        cleanup_mysql_client()
