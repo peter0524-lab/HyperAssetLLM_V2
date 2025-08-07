@@ -34,6 +34,18 @@ DEFAULT_ENV_VARS: Dict[str, Any] = {
     "DATABASE_CONNECTION_LIMIT": 100,
     "DATABASE_SSL_DISABLED": False,
     "DATABASE_SSL_VERIFY_CERT": False,
+    
+    # MySQL 데이터베이스 설정 두번째 (AWS RDS)
+    "DATABASE2_HOST": "database-2.c76oas6uq532.us-east-2.rds.amazonaws.com",
+    "DATABASE2_PORT": 3306,
+    "DATABASE2_USER": "admin",
+    "DATABASE2_PASSWORD": "rlaalsrua1",
+    "DATABASE2_NAME": "HyperAsset2",
+    "DATABASE2_TIMEZONE": "+09:00",
+    "DATABASE2_CONNECTION_LIMIT": 100,
+    "DATABASE2_SSL_DISABLED": False,
+    "DATABASE2_SSL_VERIFY_CERT": False,
+    
     # ChromaDB 설정 (PersistentClient 방식 - 별도 서버 포트 불필요)
     "CHROMADB_HOST": "localhost",
     "CHROMADB_PERSIST_DIRECTORY": "./data/chroma",
@@ -245,6 +257,16 @@ def get_config() -> Dict[str, Any]:
             "database": get_env_var("DATABASE_NAME", "backendTest"),
             "timezone": get_env_var("DATABASE_TIMEZONE", "+09:00"),
             "connection_limit": get_int_env_var("DATABASE_CONNECTION_LIMIT", 100),
+        },
+        # MySQL 데이터베이스 두번째 설정
+        "mysql2": {
+            "host": get_env_var("DATABASE2_HOST", "127.0.0.1"),
+            "port": get_int_env_var("DATABASE2_PORT", 3306),
+            "user": get_env_var("DATABASE2_USER", "root"),
+            "password": get_env_var("DATABASE2_PASSWORD", "peter0524!"),
+            "database": get_env_var("DATABASE2_NAME", "backendTest"),
+            "timezone": get_env_var("DATABASE2_TIMEZONE", "+09:00"),
+            "connection_limit": get_int_env_var("DATABASE2_CONNECTION_LIMIT", 100),
         },
         # ChromaDB 설정
         "chromadb": {

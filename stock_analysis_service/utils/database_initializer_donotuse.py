@@ -27,7 +27,7 @@ class DatabaseInitializer:
     
     def __init__(self):
         self.config = get_config()
-        self.mysql_client = MySQLClient()
+        self.mysql_client = MySQLClient("mysql") # 메인 DB 클라이언트
         self.vector_db = VectorDBClient()
         
         # 로깅 설정
