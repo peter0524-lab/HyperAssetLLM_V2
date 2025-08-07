@@ -1,0 +1,38 @@
+# HyperAsset LLM Environment Variables Configuration
+
+# =================
+# 프론트엔드 환경 변수
+# =================
+# 파일 위치: stock_analysis_service/frontend/.env.production
+
+VITE_API_BASE_URL=http://your-vm-ip-or-domain
+VITE_NODE_ENV=production
+
+# =================
+# 백엔드 환경 변수  
+# =================
+# Docker Compose에서 자동 설정됨
+
+# 데이터베이스 설정 (AWS RDS)
+DATABASE_HOST=database-1.c7gaw6asmxbo.ap-northeast-2.rds.amazonaws.com
+DATABASE_PORT=3306
+DATABASE_USER=admin
+DATABASE_PASSWORD=Peter0524!
+DATABASE_NAME=HyperAsset
+
+# API 키 설정
+HYPERCLOVA_API_KEY=nv-b8935535a68442e3bce731a356b119a4Xbzy
+HYPERCLOVA_API_URL=https://clovastudio.stream.ntruss.com/testapp/v3/chat-completions/HCX-005
+GEMINI_API_KEY=your-gemini-api-key
+
+# 환경 설정
+ENV=production
+DEBUG=false
+LOG_LEVEL=INFO
+
+# 타겟 종목
+TARGET_STOCK_CODE=006800
+TARGET_STOCK_NAME=미래에셋증권
+
+# ChromaDB 설정
+CHROMADB_PERSIST_DIRECTORY=/app/data/chroma

@@ -16,68 +16,81 @@ const Hero = () => {
   const [isStartingServices, setIsStartingServices] = useState(false);
   const [startupPhase, setStartupPhase] = useState<'starting' | 'checking' | 'complete' | 'error'>('starting');
 
-  // 🔥 실제로 서버들을 시작하는 함수
-  const startAllServers = async () => {
-    console.log("🚀 서버 시작 프로세스 시작");
+  // 🔥 Docker Compose 서비스들 상태 확인 함수
+  const checkDockerServices = async () => {
+    console.log("🐳 Docker Compose 서비스 상태 확인 시작");
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    console.log("📋 실제 동작:");
-    console.log("   1️⃣ simple_server_starter.py 호출 → 모든 서비스 포트 시작");
-    console.log("   2️⃣ user_service + api_gateway 상태만 체크 후 완료 처리");
-    console.log("   3️⃣ 실제 분석 서비스들은 사용자가 선택 후 Orchestrator가 스케줄링으로 실행");
+    console.log("📋 새로운 동작 방식:");
+    console.log("   1️⃣ Docker Compose로 모든 서비스가 자동 시작됨");
+    console.log("   2️⃣ API Gateway (8005) 헬스체크");
+    console.log("   3️⃣ User Service (8006) 헬스체크");
+    console.log("   4️⃣ 모든 서비스 준비 완료 시 대시보드 이동");
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     try {
-      // 1단계: Simple Server Starter를 통해 모든 서버 시작 요청
-      console.log("📡 1단계: 서버 시작 요청 중...");
-      console.log("🔗 요청 URL: http://localhost:9998/start-servers");
-      console.log("📤 요청 방식: POST");
+      // Docker Compose 환경에서는 서비스들이 이미 실행 중이어야 함
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://hyperasset.site';
+      const API_GATEWAY_URL = `${API_BASE_URL}/health`;
+      const USER_SERVICE_URL = `${API_BASE_URL}/users/health`;
+      
+      console.log("📡 1단계: API Gateway 헬스체크...");
+      console.log("🔗 요청 URL:", API_GATEWAY_URL);
       
       const startTime = Date.now();
-      const response = await fetch('http://localhost:9998/start-servers', {
-        method: 'POST',
+      
+      // API Gateway 헬스체크
+      const gatewayResponse = await fetch(API_GATEWAY_URL, {
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
       });
 
+      if (!gatewayResponse.ok) {
+        throw new Error(`API Gateway 헬스체크 실패: ${gatewayResponse.status}`);
+      }
+
+      const gatewayResult = await gatewayResponse.json();
+      console.log("✅ API Gateway 헬스체크 성공!");
+      console.log("📋 응답 데이터:", gatewayResult);
+      
+      console.log("📡 2단계: User Service 헬스체크...");
+      console.log("🔗 요청 URL:", USER_SERVICE_URL);
+      
+      // User Service 헬스체크
+      const userResponse = await fetch(USER_SERVICE_URL, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!userResponse.ok) {
+        throw new Error(`User Service 헬스체크 실패: ${userResponse.status}`);
+      }
+
+      const userResult = await userResponse.json();
+      console.log("✅ User Service 헬스체크 성공!");
+      console.log("📋 응답 데이터:", userResult);
+
       const requestTime = Date.now() - startTime;
-      console.log(`⏱️ 요청 완료 시간: ${requestTime}ms`);
-
-      if (!response.ok) {
-        console.error(`❌ HTTP 에러! 상태 코드: ${response.status}`);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log("✅ 서버 시작 요청 성공!");
-      console.log("📋 응답 데이터:", result);
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log(`⏱️ 전체 헬스체크 완료 시간: ${requestTime}ms`);
       
-      // 2단계: 서버들이 완전히 시작될 때까지 대기
-      console.log("⏳ 2단계: 서버 시작 완료 대기 중...");
-      console.log("🕐 대기 시간: 10초");
-      
-      // 카운트다운 표시
-      for (let i = 10; i > 0; i--) {
-        console.log(`⏰ 남은 시간: ${i}초...`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      
-      console.log("✅ 대기 완료!");
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       
       // 3단계: 최종 완료
-      console.log("🎉 3단계: 모든 서비스 시작 완료!");
-      console.log("✅ Simple Server Starter (포트 9998) - 실행됨");
-      console.log("✅ API Gateway (포트 8005) - 실행됨");
-      console.log("✅ User Service (포트 8006) - 실행됨");
+      console.log("🎉 3단계: 모든 핵심 서비스 준비 완료!");
+      console.log("✅ API Gateway (포트 8005) - 실행 중");
+      console.log("✅ User Service (포트 8006) - 실행 중");
+      console.log("📝 참고: 다른 서비스들(News, Chart 등)은 필요 시 자동 호출됨");
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     } catch (error) {
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.error("❌ 서버 시작 실패!");
+      console.error("❌ Docker 서비스 헬스체크 실패!");
       console.error("🔍 에러 상세:", error);
       console.error("📋 에러 메시지:", error.message);
+      console.error("💡 해결 방법: 'docker-compose up -d' 명령으로 서비스들을 먼저 시작하세요");
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       throw error;
     }
@@ -99,8 +112,8 @@ const Hero = () => {
       
       console.log("🔄 서버 시작 함수 호출 중...");
       
-      // 🔥 직접 서버들을 시작하는 함수 호출
-      await startAllServers();
+      // 🔥 Docker Compose 서비스 상태 확인 함수 호출
+      await checkDockerServices();
       
       console.log("🎉 모든 서버 시작 완료!");
       console.log("📢 사용자 알림: 서비스가 성공적으로 시작되었습니다!");

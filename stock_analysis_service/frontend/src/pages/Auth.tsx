@@ -52,9 +52,10 @@ const Auth = () => {
         // 전화번호로 사용자 확인 API 호출 (User Service 직접 호출)
         console.log('🔍 사용자 확인 API 호출 시작 (직접 호출)');
         console.log('📱 전화번호:', inputPhoneNumber);
-        console.log('🔗 직접 호출 URL:', `http://localhost:8006/users/check?phone_number=${inputPhoneNumber}`);
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://hyperasset.site';
+        console.log('🔗 직접 호출 URL:', `${API_BASE_URL}/users/check?phone_number=${inputPhoneNumber}`);
         
-        const response = await fetch(`http://localhost:8006/users/check?phone_number=${inputPhoneNumber}`);
+        const response = await fetch(`${API_BASE_URL}/users/check?phone_number=${inputPhoneNumber}`);
         const userCheckResult: any = await response.json();
         console.log('✅ User Service 직접 호출 응답:', userCheckResult);
         

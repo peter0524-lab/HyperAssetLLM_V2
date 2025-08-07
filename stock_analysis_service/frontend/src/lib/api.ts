@@ -1,8 +1,9 @@
 import axios from 'axios';
 
-// 🔥 직접 호출 방식 (Direct Call) - API Gateway 우회
-const API_GATEWAY_URL = 'http://localhost:8005'; // API Gateway (헬스체크용)
-const USER_SERVICE_URL = 'http://localhost:8006'; // User Service 직접 호출
+// 🔥 VM 백엔드 연결 설정 (HTTPS + NGINX 리버스 프록시)
+const VM_BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'https://hyperasset.site';
+const API_GATEWAY_URL = `${VM_BACKEND_URL}`; // NGINX 리버스 프록시 사용
+const USER_SERVICE_URL = `${VM_BACKEND_URL}`; // NGINX 리버스 프록시 사용
 
 // API Gateway용 클라이언트 (헬스체크만)
 const gatewayClient = axios.create({
