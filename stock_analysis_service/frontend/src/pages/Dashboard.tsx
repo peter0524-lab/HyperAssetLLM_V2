@@ -493,11 +493,11 @@ const Dashboard = () => {
                     </svg>
                     텔레그램 알림
                   </Button>
-                  <Button variant="outline" onClick={() => navigate('/profile')}>
+                  <Button variant="outline" onClick={() => navigate('/settings')}>
                     <Settings className="h-4 w-4 mr-2" />
-                    프로필 수정
+                    환경 설정
                   </Button>
-                  <Button variant="outline" onClick={() => navigate('/stocks')}>
+                  <Button variant="outline" onClick={() => navigate('/stock-management')}>
                     <TrendingUp className="h-4 w-4 mr-2" />
                     종목 관리
                   </Button>

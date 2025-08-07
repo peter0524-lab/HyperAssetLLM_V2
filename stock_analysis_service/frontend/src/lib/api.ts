@@ -208,6 +208,61 @@ export const api = {
     }
   },
 
+  // ===== 프로필 설정 (User Service 직접 호출) =====
+  async updateUserProfile(userId: string, profileData: Partial<UserProfile>): Promise<any> {
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("👤 프로필 설정 API 호출 시작 (직접 호출)");
+    console.log("👤 사용자 ID:", userId);
+    console.log("📋 설정할 프로필 데이터:", profileData);
+    console.log("🔗 직접 호출 URL:", `/users/${userId}/profile`);
+    console.log("📤 요청 방식: POST");
+    
+    try {
+      const startTime = Date.now();
+      const response = await userServiceClient.post(`/users/${userId}/profile`, profileData);
+      const requestTime = Date.now() - startTime;
+      
+      console.log("✅ 프로필 설정 API 성공! (직접 호출)");
+      console.log("⏱️ 요청 완료 시간:", requestTime + "ms");
+      console.log("📋 응답 데이터:", response.data);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      
+      return response.data;
+    } catch (error: any) {
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.error('❌ 프로필 설정 API 에러! (직접 호출)');
+      console.error('🔍 에러 상세 분석:');
+      console.error('📋 에러 메시지:', error.message);
+      console.error('📋 상태 코드:', error.response?.status);
+      console.error('📋 상태 텍스트:', error.response?.statusText);
+      console.error('📋 서버 응답:', error.response?.data);
+      console.error('📋 요청 설정:', error.config);
+      console.error('🔍 전체 에러:', error);
+      
+      // 404 에러인 경우
+      if (error.response?.status === 404) {
+        console.error('💥 프로필 설정 엔드포인트 누락 (404)!');
+        console.error('🔍 가능한 원인:');
+        console.error('   - User Service에 프로필 설정 API가 없음');
+        console.error('   - 잘못된 엔드포인트 경로');
+        console.error('🔧 임시 해결책: 로컬 스토리지에 저장');
+        
+        // 로컬 스토리지에 임시 저장
+        localStorage.setItem('user_profile', JSON.stringify(profileData));
+        console.log('💾 로컬 스토리지에 프로필 데이터 저장 완료');
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        
+        return {
+          success: true,
+          message: '프로필이 로컬에 저장되었습니다 (데모 모드)'
+        };
+      }
+      
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      throw error;
+    }
+  },
+
   // ===== 모델 설정 (User Service 직접 호출) =====
   async updateUserModel(userId: string, modelData: { model_type: string }): Promise<any> {
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -648,13 +703,34 @@ export const api = {
   ): Promise<any> {
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.log(`🔧 원하는 서비스 설정 API 호출 시작 (사용자 ID: ${userId})`);
-    console.log('📋 설정할 서비스:', services);
+    console.log('📋 원본 서비스 데이터:', services);
+    
+    // ✅ 백엔드가 기대하는 형식으로 데이터 변환
+    const serviceSettings = {
+      news_service: false,
+      disclosure_service: false,
+      report_service: false,
+      chart_service: false,
+      flow_service: false
+    };
+    
+    // 활성화된 서비스만 true로 설정
+    services.forEach(service => {
+      if (service.enabled) {
+        const serviceName = service.service_name as keyof typeof serviceSettings;
+        if (serviceName in serviceSettings) {
+          serviceSettings[serviceName] = true;
+        }
+      }
+    });
+    
+    console.log('📋 변환된 서비스 설정 (백엔드 형식):', serviceSettings);
     console.log(`🔗 직접 호출 URL: /users/${userId}/wanted-services`);
     console.log(`📤 요청 방식: PUT`);
 
     const startTime = performance.now();
     try {
-      const response = await userServiceClient.put(`/users/${userId}/wanted-services`, services);
+      const response = await userServiceClient.put(`/users/${userId}/wanted-services`, serviceSettings);
       const endTime = performance.now();
       console.log(`⏱️ 요청 완료 시간: ${(endTime - startTime).toFixed(0)}ms`);
       console.log('✅ 원하는 서비스 설정 성공!');
@@ -677,7 +753,7 @@ export const api = {
         console.error('🔧 임시 해결책: 로컬 스토리지에 저장');
         
         // 로컬 스토리지에 임시 저장
-        localStorage.setItem('user_wanted_services', JSON.stringify(services));
+        localStorage.setItem('user_wanted_services', JSON.stringify(serviceSettings));
         console.log('💾 로컬 스토리지에 서비스 설정 저장 완료');
         
         return {

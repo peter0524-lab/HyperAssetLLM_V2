@@ -14,6 +14,8 @@ import ModelSelection from "./pages/ModelSelection";
 import ServiceActivation from "./pages/ServiceActivation";
 import ServiceMonitor from "./pages/ServiceMonitor";
 import TelegramSettings from "./pages/TelegramSettings";
+import Settings from "./pages/Settings";
+import StockManagement from "./pages/StockManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -43,6 +45,8 @@ const App = () => (
           <Route path="/contact" element={<Contact />} />
           <Route path="/service-monitor" element={<ServiceMonitor />} />
           <Route path="/telegram-settings" element={<TelegramSettings />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/stock-management" element={<StockManagement />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
