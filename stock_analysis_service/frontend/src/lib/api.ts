@@ -1,14 +1,14 @@
 import axios from 'axios';
 
 // 🔥 VM 백엔드 연결 설정 (HTTPS + NGINX 리버스 프록시)
-const VM_BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'https://hyperasset.site';
+const VM_BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://hyperasset.site';
 const API_GATEWAY_URL = `${VM_BACKEND_URL}`; // NGINX 리버스 프록시 사용
 const USER_SERVICE_URL = `${VM_BACKEND_URL}`; // NGINX 리버스 프록시 사용
 
 // API Gateway용 클라이언트 (헬스체크만)
 const gatewayClient = axios.create({
   baseURL: API_GATEWAY_URL,
-  timeout: 100000, // 10초 타임아웃
+  timeout: 200000, // 200초 타임아웃
   headers: {
     'Content-Type': 'application/json',
   },

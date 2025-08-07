@@ -289,7 +289,7 @@ class OptimizedAPIGateway:
         self.services = {
             "news": ServiceConfig(
                 name="News Service",
-                instances=["http://localhost:8001"],
+                instances=["http://news-service:8001"],
                 base_path="/api/news",
                 enabled=True,
                 circuit_breaker=CircuitBreaker(
@@ -301,7 +301,7 @@ class OptimizedAPIGateway:
             ),
             "disclosure": ServiceConfig(
                 name="Disclosure Service",
-                instances=["http://localhost:8002"],
+                instances=["http://disclosure-service:8002"],
                 base_path="/api/disclosure",
                 enabled=True,
                 circuit_breaker=CircuitBreaker(
@@ -313,7 +313,7 @@ class OptimizedAPIGateway:
             ),
             "chart": ServiceConfig(
                 name="Chart Service",
-                instances=["http://localhost:8003"],
+                instances=["http://chart-service:8003"],
                 base_path="/api/chart",
                 enabled=True,
                 circuit_breaker=CircuitBreaker(
@@ -325,7 +325,7 @@ class OptimizedAPIGateway:
             ),
             "report": ServiceConfig(
                 name="Report Service",
-                instances=["http://localhost:8004"],
+                instances=["http://report-service:8004"],
                 base_path="/api/report",
                 enabled=True,
                 circuit_breaker=CircuitBreaker(
@@ -337,7 +337,7 @@ class OptimizedAPIGateway:
             ),
             "flow_analysis": ServiceConfig(
                 name="Flow Analysis Service",
-                instances=["http://localhost:8010"],
+                instances=["http://flow-analysis-service:8010"],
                 base_path="/api/flow",
                 enabled=True,
                 circuit_breaker=CircuitBreaker(
@@ -349,7 +349,7 @@ class OptimizedAPIGateway:
             ),
             "user": ServiceConfig(
                 name="User Service",
-                instances=["http://localhost:8006"],
+                instances=["http://user-service:8006"],
                 base_path="/api/user",
                 enabled=True,
                 circuit_breaker=CircuitBreaker(
@@ -361,7 +361,7 @@ class OptimizedAPIGateway:
             ),
             "orchestrator": ServiceConfig(
                 name="Orchestrator Service",
-                instances=["http://localhost:8000"],
+                instances=["http://orchestrator:8000"],
                 base_path="/api/orchestrator",
                 enabled=True,
                 circuit_breaker=CircuitBreaker(

@@ -71,70 +71,70 @@ class GatewayConfig:
 SERVICES_CONFIG = {
     "news": ServiceConfig(
         name="News Service",
-        instances=["http://localhost:8001"],
+        instances=["http://news-service:8001"],
         base_path="/api/news",
         timeout=15.0,
         circuit_breaker_threshold=5
     ),
     "disclosure": ServiceConfig(
         name="Disclosure Service",
-        instances=["http://localhost:8002"],
+        instances=["http://disclosure-service:8002"],
         base_path="/api/disclosure",
         timeout=20.0,
         circuit_breaker_threshold=5
     ),
     "chart": ServiceConfig(
         name="Chart Service",
-        instances=["http://localhost:8003"],
+        instances=["http://chart-service:8003"],
         base_path="/api/chart",
         timeout=10.0,
         circuit_breaker_threshold=3
     ),
     "report": ServiceConfig(
         name="Report Service",
-        instances=["http://localhost:8004"],
+        instances=["http://report-service:8004"],
         base_path="/api/report",
         timeout=30.0,
         circuit_breaker_threshold=5
     ),
     "flow_analysis": ServiceConfig(
         name="Flow Analysis Service",
-        instances=["http://localhost:8010"],
+        instances=["http://flow-analysis-service:8010"],
         base_path="/api/flow",
         timeout=15.0,
         circuit_breaker_threshold=5
     ),
     "user": ServiceConfig(
         name="User Service",
-        instances=["http://localhost:8006"],
+        instances=["http://user-service:8006"],
         base_path="/api/user",
         timeout=5.0,
         circuit_breaker_threshold=3
     ),
     "orchestrator": ServiceConfig(
         name="Orchestrator Service",
-        instances=["http://localhost:8000"],
+        instances=["http://orchestrator:8000"],
         base_path="/api/orchestrator",
         timeout=10.0,
         circuit_breaker_threshold=3
     ),
     "issue_scheduler": ServiceConfig(
         name="Issue Scheduler Service",
-        instances=["http://localhost:8007"],
+        instances=["http://issue-scheduler:8007"],
         base_path="/api/issue",
         timeout=15.0,
         circuit_breaker_threshold=5
     ),
     "business_report": ServiceConfig(
         name="Business Report Service",
-        instances=["http://localhost:8008"],
+        instances=["http://business-report-service:8008"],
         base_path="/api/business",
         timeout=30.0,
         circuit_breaker_threshold=5
     ),
     "analysis": ServiceConfig(
         name="Analysis Service",
-        instances=["http://localhost:8009"],
+        instances=["http://analysis-service:8009"],
         base_path="/api/analysis",
         timeout=20.0,
         circuit_breaker_threshold=5

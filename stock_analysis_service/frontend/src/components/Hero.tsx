@@ -29,7 +29,7 @@ const Hero = () => {
 
     try {
       // Docker Compose 환경에서는 서비스들이 이미 실행 중이어야 함
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://hyperasset.site';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://hyperasset.site';
       const API_GATEWAY_URL = `${API_BASE_URL}/health`;
       const USER_SERVICE_URL = `${API_BASE_URL}/users/health`;
       
