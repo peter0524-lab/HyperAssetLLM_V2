@@ -71,7 +71,8 @@ class ReportService:
         self.user_config_loader = None  # 비동기로 초기화됨
         self.personalized_configs = {}  # 사용자별 개인화 설정 캐시
         
-        self.mysql_client = get_mysql_client()
+        self.mysql_client = get_mysql_client("mysql")
+        self.mysql2_client = get_mysql_client("mysql2")
         # ChromaDB 대시보드와 동일한 경로를 사용하도록 환경 변수 설정
         news_service_chroma_path = os.path.join(project_root, "services", "news_service", "data", "chroma")
         os.environ["CHROMADB_PERSIST_DIRECTORY"] = news_service_chroma_path
@@ -223,7 +224,7 @@ class ReportService:
             SELECT rcept_dt, summary FROM disclosure_history
             WHERE stock_code = %s AND rcept_dt >= %s AND rcept_dt <= %s
             """
-            disclosure_data = await self.mysql_client.fetch_all_async(
+            disclosure_data = await self.mysql2_client.fetch_all_async( # self.mysql_client -> self.mysql2_client 변경
                 disclosure_query, (stock_code, seven_days_ago_str, today_str)
             )
             if disclosure_data:
@@ -249,7 +250,7 @@ class ReportService:
             WHERE stock_code = %s AND date >= %s AND date <= %s
             ORDER BY date ASC
             """
-            chart_results = await self.mysql_client.fetch_all_async(
+            chart_results = await self.mysql2_client.fetch_all_async(
                 chart_query, (stock_code, seven_days_ago_str, today_str)
             )
             if chart_results:
@@ -630,6 +631,7 @@ class ReportService:
         finally:
             # 리소스 정리
             self.mysql_client.close()
+            self.mysql2_client.close()
             self.close_driver()
 
     async def process_all_stocks(self, stocks_config: Dict):

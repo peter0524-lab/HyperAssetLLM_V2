@@ -38,7 +38,8 @@ class MiraeFlowDataPopulator:
     def __init__(self):
         """초기화"""
         self.config = get_config()
-        self.mysql_client = get_mysql_client()
+        self.mysql_client = get_mysql_client("mysql") # 메인 DB 클라이언트
+        self.mysql2_client = get_mysql_client("mysql2") # 보조 DB 클라이언트 (HyperAsset2)
         self.pykrx_client = PyKRXAPIClient()
         self.stock_code = "006800"  # 미래에셋증권
         self.stock_name = "미래에셋증권"
@@ -49,14 +50,14 @@ class MiraeFlowDataPopulator:
         """MySQL 연결 풀 재설정"""
         try:
             # 기존 연결 풀 정리
-            if hasattr(self.mysql_client, 'pool'):
-                self.mysql_client.pool.close()
+            if hasattr(self.mysql2_client, 'pool'): # self.mysql_client -> self.mysql2_client 변경
+                self.mysql2_client.pool.close() # self.mysql_client -> self.mysql2_client 변경
             
             # 새로운 연결 풀 생성
-            self.mysql_client = get_mysql_client()
-            logger.info("MySQL 연결 풀 재설정 완료")
+            self.mysql2_client = get_mysql_client("mysql2") # self.mysql_client -> self.mysql2_client 변경 및 "mysql2" 명시
+            logger.info("MySQL2 연결 풀 재설정 완료") # 로그 메시지 변경
         except Exception as e:
-            logger.error(f"MySQL 연결 풀 재설정 실패: {e}")
+            logger.error(f"MySQL2 연결 풀 재설정 실패: {e}") # 로그 메시지 변경
 
     async def initialize_database(self):
         """데이터베이스 초기화"""
@@ -70,7 +71,7 @@ class MiraeFlowDataPopulator:
                 # SQL 문 분리 및 실행
                 statements = [stmt.strip() for stmt in schema_sql.split(';') if stmt.strip()]
                 
-                with self.mysql_client.get_connection() as conn:
+                with self.mysql2_client.get_connection() as conn:
                     cursor = conn.cursor()
                     for statement in statements:
                         if statement and not statement.startswith('--'):
@@ -170,7 +171,7 @@ class MiraeFlowDataPopulator:
                     updated_at = CURRENT_TIMESTAMP
             """
 
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(query, (
                     flow_data["trade_date"],
@@ -248,7 +249,7 @@ class MiraeFlowDataPopulator:
                     total_volume = VALUES(total_volume)
             """
 
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn:
                 cursor = conn.cursor()
                 for data in program_data:
                     cursor.execute(query, (
@@ -307,7 +308,7 @@ class MiraeFlowDataPopulator:
         """최근 5일 중 기관 순매수일 수 계산"""
         try:
             # 최근 5일 데이터 조회
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn:
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
                 cursor.execute("""
                     SELECT trade_date, inst_net 
@@ -331,7 +332,7 @@ class MiraeFlowDataPopulator:
         """프로그램 매매 비율 계산 (30일 평균 대비)"""
         try:
             # 30일 평균 프로그램 매매량 계산
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn:
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
                 cursor.execute("""
                     SELECT AVG(total_volume) as avg_volume
@@ -388,7 +389,7 @@ class MiraeFlowDataPopulator:
                 else:
                     cleaned_trigger_data[key] = value
             
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(query, (
                     ref_time,
@@ -506,7 +507,7 @@ class MiraeFlowDataPopulator:
     async def verify_data_integrity(self):
         """데이터 무결성 검증"""
         try:
-            with self.mysql_client.get_connection() as conn:
+            with self.mysql2_client.get_connection() as conn:
                 cursor = conn.cursor(pymysql.cursors.DictCursor)
                 
                 # EOD 데이터 개수 확인

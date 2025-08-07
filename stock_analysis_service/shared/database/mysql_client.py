@@ -30,7 +30,7 @@ sys.path.append(str(project_root))
 config_path = project_root / "config"
 sys.path.append(str(config_path))
 
-from env_local import get_env_var, get_int_env_var, get_bool_env_var, load_env_vars
+from env_local import get_env_var, get_int_env_var, get_bool_env_var, load_env_vars, get_config
 
 # 환경 변수 로드
 load_env_vars()
@@ -90,6 +90,9 @@ class MySQLConnectionPool:
         self.cleanup_thread = None
         self.stop_cleanup = threading.Event()
         
+        # DB 이름 로깅을 위해 추가
+        self.db_name = connection_params.get("database", "UNKNOWN_DB")
+        
         self._create_initial_pool()
         self._start_cleanup_thread()
         
@@ -104,7 +107,7 @@ class MySQLConnectionPool:
     
     def _signal_handler(self, signum, frame):
         """시그널 핸들러"""
-        logger.info(f"시그널 {signum} 수신, 연결 풀 정리 중...")
+        logger.info(f"시그널 {signum} 수신, 연결 풀 정리 중 ({self.db_name})...")
         self.close_all()
     
     def _create_initial_pool(self):
@@ -116,9 +119,9 @@ class MySQLConnectionPool:
                 conn_wrapper = self._create_connection()
                 if conn_wrapper:
                     self.pool.put_nowait(conn_wrapper)
-                    logger.debug(f"초기 연결 {i+1}/{initial_size} 생성 완료")
+                    logger.debug(f"[{self.db_name}] 초기 연결 {i+1}/{initial_size} 생성 완료")
             except Exception as e:
-                logger.error(f"초기 연결 {i+1} 생성 실패: {e}")
+                logger.error(f"[{self.db_name}] 초기 연결 {i+1} 생성 실패: {e}")
                 if i == 0:  # 첫 번째 연결도 실패하면 에러
                     raise
     
@@ -145,17 +148,17 @@ class MySQLConnectionPool:
                 self.total_created += 1
                 self.active_connections.add(wrapper)
             
-            logger.debug(f"새 연결 생성 완료 (총 생성: {self.total_created})")
+            logger.debug(f"[{self.db_name}] 새 연결 생성 완료 (총 생성: {self.total_created})")
             return wrapper
             
         except Exception as e:
-            logger.error(f"연결 생성 실패: {e}")
+            logger.error(f"[{self.db_name}] 연결 생성 실패: {e}")
             return None
     
     def get_connection(self, timeout=20):
         """연결 풀에서 연결 가져오기 - 더 짧은 타임아웃"""
         if self.is_closed:
-            raise RuntimeError("연결 풀이 닫혔습니다")
+            raise RuntimeError(f"[{self.db_name}] 연결 풀이 닫혔습니다")
         
         start_time = time.time()
         
@@ -168,7 +171,7 @@ class MySQLConnectionPool:
                     # 연결 상태 확인
                     if self._is_connection_valid(wrapper):
                         wrapper.mark_used()
-                        logger.debug("풀에서 연결 가져옴")
+                        logger.debug(f"[{self.db_name}] 풀에서 연결 가져옴")
                         return wrapper
                     else:
                         # 유효하지 않은 연결 정리
@@ -183,11 +186,11 @@ class MySQLConnectionPool:
                 wrapper = self._create_connection()
                 if wrapper:
                     wrapper.mark_used()
-                    logger.debug("새 연결 생성하여 반환")
+                    logger.debug(f"[{self.db_name}] 새 연결 생성하여 반환")
                     return wrapper
             
             # 3. 대기 (blocking) - 더 짧은 대기
-            logger.warning("연결 풀 고갈, 대기 중...")
+            logger.warning(f"[{self.db_name}] 연결 풀 고갈, 대기 중...")
             try:
                 remaining_time = max(1, timeout - (time.time() - start_time))
                 wrapper = self.pool.get(timeout=remaining_time)
@@ -201,9 +204,9 @@ class MySQLConnectionPool:
                 pass
         
         except Exception as e:
-            logger.error(f"연결 가져오기 실패: {e}")
+            logger.error(f"[{self.db_name}] 연결 가져오기 실패: {e}")
         
-        raise RuntimeError(f"연결 획득 실패 (timeout: {timeout}s)")
+        raise RuntimeError(f"[{self.db_name}] 연결 획득 실패 (timeout: {timeout}s)")
     
     def return_connection(self, wrapper):
         """연결을 풀에 반환"""
@@ -220,21 +223,21 @@ class MySQLConnectionPool:
             
             # 만료된 연결 정리
             if wrapper.is_expired() or wrapper.is_idle_too_long():
-                logger.debug("만료된 연결 정리")
+                logger.debug(f"[{self.db_name}] 만료된 연결 정리")
                 self._close_connection(wrapper)
                 return
             
             # 풀에 반환
             try:
                 self.pool.put_nowait(wrapper)
-                logger.debug("연결 풀에 반환")
+                logger.debug(f"[{self.db_name}] 연결 풀에 반환")
             except queue.Full:
                 # 풀이 가득 차면 연결 닫기
-                logger.debug("풀 가득참, 연결 닫기")
+                logger.debug(f"[{self.db_name}] 풀 가득참, 연결 닫기")
                 self._close_connection(wrapper)
                 
         except Exception as e:
-            logger.error(f"연결 반환 중 오류: {e}")
+            logger.error(f"[{self.db_name}] 연결 반환 중 오류: {e}")
             self._close_connection(wrapper)
     
     def _is_connection_valid(self, wrapper) -> bool:
@@ -252,7 +255,7 @@ class MySQLConnectionPool:
             return True
             
         except Exception as e:
-            logger.debug(f"연결 유효성 검사 실패: {e}")
+            logger.debug(f"[{self.db_name}] 연결 유효성 검사 실패: {e}")
             return False
     
     def _close_connection(self, wrapper):
@@ -264,9 +267,9 @@ class MySQLConnectionPool:
                 
                 if wrapper.connection and wrapper.connection.open:
                     wrapper.connection.close()
-                    logger.debug("연결 정리 완료")
+                    logger.debug(f"[{self.db_name}] 연결 정리 완료")
         except Exception as e:
-            logger.debug(f"연결 정리 중 오류 (무시됨): {e}")
+            logger.debug(f"[{self.db_name}] 연결 정리 중 오류 (무시됨): {e}")
     
     def _start_cleanup_thread(self):
         """정리 스레드 시작"""
@@ -275,11 +278,11 @@ class MySQLConnectionPool:
         
         self.cleanup_thread = threading.Thread(
             target=self._cleanup_worker,
-            name="MySQL-Pool-Cleanup",
+            name=f"MySQL-Pool-Cleanup-{self.db_name}",
             daemon=True
         )
         self.cleanup_thread.start()
-        logger.debug("정리 스레드 시작됨")
+        logger.debug(f"[{self.db_name}] 정리 스레드 시작됨")
     
     def _cleanup_worker(self):
         """정리 작업자 스레드 - 더 자주 정리"""
@@ -288,7 +291,7 @@ class MySQLConnectionPool:
                 self._cleanup_expired_connections()
                 self._cleanup_memory()
             except Exception as e:
-                logger.debug(f"정리 작업 중 오류: {e}")
+                logger.debug(f"[{self.db_name}] 정리 작업 중 오류: {e}")
     
     def _cleanup_expired_connections(self):
         """만료된 연결 정리"""
@@ -318,7 +321,7 @@ class MySQLConnectionPool:
             self._close_connection(wrapper)
         
         if expired_connections:
-            logger.debug(f"만료된 연결 {len(expired_connections)}개 정리")
+            logger.debug(f"[{self.db_name}] 만료된 연결 {len(expired_connections)}개 정리")
     
     def _cleanup_memory(self):
         """메모리 정리"""
@@ -336,7 +339,8 @@ class MySQLConnectionPool:
                 'active_connections': len(self.active_connections),
                 'available_connections': self.pool.qsize(),
                 'total_created': self.total_created,
-                'is_closed': self.is_closed
+                'is_closed': self.is_closed,
+                'db_name': self.db_name # DB 이름 추가
             }
     
     def close_all(self):
@@ -344,7 +348,7 @@ class MySQLConnectionPool:
         if self.is_closed:
             return
         
-        logger.info("연결 풀 정리 시작...")
+        logger.info(f"[{self.db_name}] 연결 풀 정리 시작...")
         self.is_closed = True
         
         # 정리 스레드 중단
@@ -371,7 +375,7 @@ class MySQLConnectionPool:
                 closed_count += 1
             self.active_connections.clear()
         
-        logger.info(f"연결 풀 정리 완료: {closed_count}개 연결 닫음")
+        logger.info(f"[{self.db_name}] 연결 풀 정리 완료: {closed_count}개 연결 닫음")
 
 
 class MySQLClient:
@@ -394,15 +398,15 @@ class MySQLClient:
                 "charset": "utf8mb4",
                 "autocommit": True,
                 "cursorclass": pymysql.cursors.DictCursor,
-                "ssl_disabled": True,
+                "ssl_disabled": get_bool_env_var("DATABASE_SSL_DISABLED", True),
             }
             
             if custom_config:
                 env_config.update(custom_config)
 
-            # 연결 풀 설정 최적화 - 더 작은 풀
-            pool_size = min(2, get_int_env_var("DATABASE_CONNECTION_LIMIT", 2))  # 기본 2개
-            max_overflow = min(2, get_int_env_var("DATABASE_MAX_OVERFLOW", 2))  # overflow 2개
+            # 연결 풀 설정 최적화 - custom_config에 connection_limit이 있다면 사용하고, 없으면 기존 env_config에서 가져옴
+            pool_size = min(2, (custom_config or {}).get("connection_limit", get_int_env_var("DATABASE_CONNECTION_LIMIT", 2)))
+            max_overflow = min(2, (custom_config or {}).get("max_overflow", get_int_env_var("DATABASE_MAX_OVERFLOW", 2)))
             
             self.pool = MySQLConnectionPool(
                 pool_size=pool_size,
@@ -413,7 +417,9 @@ class MySQLClient:
             logger.info(f"MySQL 연결 풀 생성 완료: {env_config['host']}:{env_config['port']}/{env_config['database']} (pool_size={pool_size}, max_overflow={max_overflow})")
 
         except Exception as e:
-            logger.error(f"MySQL 연결 풀 생성 실패: {e}")
+            # 에러 로깅에 DB 이름 추가
+            db_name = env_config.get('database', 'UNKNOWN_DB')
+            logger.error(f"MySQL 연결 풀 생성 실패 ({db_name}): {e}")
             raise
 
     @contextmanager
@@ -427,7 +433,9 @@ class MySQLClient:
             connection = self.pool.get_connection(timeout=20)
             yield connection
         except Exception as e:
-            logger.error(f"MySQL 연결 오류: {e}")
+            # 에러 로깅에 DB 이름 추가
+            db_name = self.pool.db_name if self.pool else "UNKNOWN_DB"
+            logger.error(f"[{db_name}] MySQL 연결 오류: {e}")
             if connection and hasattr(connection, 'rollback'):
                 try:
                     connection.rollback()
@@ -459,9 +467,11 @@ class MySQLClient:
                     return result
 
             except Exception as e:
-                logger.warning(f"쿼리 실행 실패 (시도 {attempt + 1}/{max_retries}): {e}")
+                # 에러 로깅에 DB 이름 추가
+                db_name = self.pool.db_name if self.pool else "UNKNOWN_DB"
+                logger.warning(f"[{db_name}] 쿼리 실행 실패 (시도 {attempt + 1}/{max_retries}): {e}")
                 if attempt == max_retries - 1:
-                    logger.error(f"쿼리 실행 최종 실패: {query}")
+                    logger.error(f"[{db_name}] 쿼리 실행 최종 실패: {query}")
                 raise
             time.sleep(0.5 * (attempt + 1))  # 점진적 대기
 
@@ -480,7 +490,9 @@ class MySQLClient:
                 return {"affected_rows": affected_rows}
 
         except Exception as e:
-            logger.error(f"일괄 쿼리 실행 오류: {e}")
+            # 에러 로깅에 DB 이름 추가
+            db_name = self.pool.db_name if self.pool else "UNKNOWN_DB"
+            logger.error(f"[{db_name}] 일괄 쿼리 실행 오류: {e}")
             return {"affected_rows": 0}
 
     # === 비동기 래퍼 메서드 ===
@@ -496,9 +508,11 @@ class MySQLClient:
                     None, self.execute_query, query, params, fetch
                 )
             except Exception as e:
-                logger.warning(f"쿼리 실행 실패 (시도 {attempt + 1}/{max_retries}): {e}")
+                # 에러 로깅에 DB 이름 추가
+                db_name = self.pool.db_name if self.pool else "UNKNOWN_DB"
+                logger.warning(f"[{db_name}] 쿼리 실행 실패 (시도 {attempt + 1}/{max_retries}): {e}")
                 if attempt == max_retries - 1:
-                    logger.error(f"최대 재시도 횟수 초과, 쿼리 실행 실패: {query}")
+                    logger.error(f"[{db_name}] 최대 재시도 횟수 초과, 쿼리 실행 실패: {query}")
                     raise
                 # 재시도 전 잠시 대기
                 await asyncio.sleep(1 * (attempt + 1))  # 지수 백오프
@@ -523,7 +537,9 @@ class MySQLClient:
                 cursor.close()
                 return result
         except Exception as e:
-            logger.error(f"fetch_one 실행 오류: {e}")
+            # 에러 로깅에 DB 이름 추가
+            db_name = self.pool.db_name if self.pool else "UNKNOWN_DB"
+            logger.error(f"[{db_name}] fetch_one 실행 오류: {e}")
             return None
 
     def fetch_all(self, query: str, params: Optional[tuple] = None) -> List[Dict]:
@@ -539,7 +555,9 @@ class MySQLClient:
                 cursor.close()
                 return result if result else []
         except Exception as e:
-            logger.error(f"fetch_all 실행 오류: {e}")
+            # 에러 로깅에 DB 이름 추가
+            db_name = self.pool.db_name if self.pool else "UNKNOWN_DB"
+            logger.error(f"[{db_name}] fetch_all 실행 오류: {e}")
             return []
 
     async def fetch_one_async(self, query: str, params: tuple = None) -> Optional[Dict]:
@@ -576,7 +594,9 @@ class MySQLClient:
                 }
 
         except Exception as e:
-            logger.error(f"데이터베이스 상태 확인 실패: {e}")
+            # 에러 로깅에 DB 이름 추가
+            db_name = self.pool.db_name if self.pool else "UNKNOWN_DB"
+            logger.error(f"[{db_name}] 데이터베이스 상태 확인 실패: {e}")
             return {
                 "status": "unhealthy",
                 "error": str(e),
@@ -590,9 +610,12 @@ class MySQLClient:
             if self.pool:
                 self.pool.close_all()
                 self.pool = None
-                logger.info("MySQL 클라이언트 정리 완료")
+                # 로깅에 DB 이름 추가
+                logger.info(f"[{self.pool.db_name if self.pool else 'UNKNOWN_DB'}] MySQL 클라이언트 정리 완료")
         except Exception as e:
-            logger.error(f"MySQL 클라이언트 정리 실패: {e}")
+            # 로깅에 DB 이름 추가
+            db_name = self.pool.db_name if self.pool else "UNKNOWN_DB"
+            logger.error(f"[{db_name}] MySQL 클라이언트 정리 실패: {e}")
 
     # === 기존 데이터베이스 메서드들 유지 ===
     def get_current_price_data(self, stock_code: str) -> Optional[Dict]:
@@ -682,11 +705,15 @@ class MySQLClient:
                 conn.commit()
                 pattern_id = cursor.lastrowid
                 cursor.close()
-                logger.info(f"차트 패턴 저장 완료: ID={pattern_id}")
+                # 로깅에 DB 이름 추가
+                db_name = self.pool.db_name if self.pool else "UNKNOWN_DB"
+                logger.info(f"[{db_name}] 차트 패턴 저장 완료: ID={pattern_id}")
                 return pattern_id
 
         except Exception as e:
-            logger.error(f"차트 패턴 저장 오류: {e}")
+            # 로깅에 DB 이름 추가
+            db_name = self.pool.db_name if self.pool else "UNKNOWN_DB"
+            logger.error(f"[{db_name}] 차트 패턴 저장 오류: {e}")
             raise
 
     def get_disclosures(
@@ -747,11 +774,15 @@ class MySQLClient:
                 conn.commit()
                 disclosure_id = cursor.lastrowid
                 cursor.close()
-                logger.info(f"공시 데이터 저장 완료: ID={disclosure_id}")
+                # 로깅에 DB 이름 추가
+                db_name = self.pool.db_name if self.pool else "UNKNOWN_DB"
+                logger.info(f"[{db_name}] 공시 데이터 저장 완료: ID={disclosure_id}")
                 return disclosure_id
 
         except Exception as e:
-            logger.error(f"공시 데이터 저장 오류: {e}")
+            # 로깅에 DB 이름 추가
+            db_name = self.pool.db_name if self.pool else "UNKNOWN_DB"
+            logger.error(f"[{db_name}] 공시 데이터 저장 오류: {e}")
             raise
 
     def get_similar_chart_pattern(
@@ -796,15 +827,17 @@ class MySQLClient:
                 result = self.execute_query(query)
                 metrics[key] = result[0]["count"] if result else 0
             except Exception as e:
-                logger.error(f"메트릭 조회 오류 ({key}): {e}")
+                # 에러 로깅에 DB 이름 추가
+                db_name = self.pool.db_name if self.pool else "UNKNOWN_DB"
+                logger.error(f"[{db_name}] 메트릭 조회 오류 ({key}): {e}")
                 metrics[key] = 0
 
         return metrics
 
 
-def init_database() -> None:
+def init_database(db_config_key: str = "mysql") -> None:
     """데이터베이스 초기화 - 테이블 생성"""
-    client = MySQLClient()
+    client = get_mysql_client(db_config_key=db_config_key)
 
     # 차트 패턴 테이블
     chart_patterns_table = """
@@ -856,46 +889,64 @@ def init_database() -> None:
         client.execute_query(chart_patterns_table, fetch=False)
         client.execute_query(disclosures_table, fetch=False)
 
-        logger.info("데이터베이스 초기화 완료")
-        print("✅ 데이터베이스 초기화 완료")
+        logger.info(f"[{client.pool.db_name if client.pool else 'UNKNOWN_DB'}] 데이터베이스 초기화 완료")
+        print(f"✅ [{client.pool.db_name if client.pool else 'UNKNOWN_DB'}] 데이터베이스 초기화 완료")
 
     except Exception as e:
-        logger.error(f"데이터베이스 초기화 실패: {e}")
-        print(f"❌ 데이터베이스 초기화 실패: {e}")
+        logger.error(f"[{client.pool.db_name if client.pool else 'UNKNOWN_DB'}] 데이터베이스 초기화 실패: {e}")
+        print(f"❌ [{client.pool.db_name if client.pool else 'UNKNOWN_DB'}] 데이터베이스 초기화 실패: {e}")
         raise
 
 
 # 전역 클라이언트 인스턴스 (싱글톤 패턴)
-_mysql_client_instance = None
+_mysql_client_instances: Dict[str, MySQLClient] = {}
 _client_lock = threading.Lock()
 
 
-def get_mysql_client() -> MySQLClient:
+def get_mysql_client(db_config_key: str = "mysql") -> MySQLClient:
     """MySQL 클라이언트 인스턴스 반환 (싱글톤)"""
-    global _mysql_client_instance
+    global _mysql_client_instances
     
-    if _mysql_client_instance is None:
+    if db_config_key not in _mysql_client_instances:
         with _client_lock:
-            if _mysql_client_instance is None:
-                _mysql_client_instance = MySQLClient()
+            if db_config_key not in _mysql_client_instances:
+                custom_config = None
+                
+                if db_config_key == "mysql":
+                    # 'mysql' (기본값 또는 명시적 호출)인 경우, custom_config를 None으로 전달
+                    # MySQLClient가 기존 환경 변수 (DATABASE_HOST 등)를 사용하도록 함
+                    custom_config = None
+                elif db_config_key == "mysql2":
+                    # 'mysql2'인 경우, env_local.py에서 해당 설정을 가져옴
+                    full_config = get_config()
+                    custom_config = full_config.get(db_config_key)
+                    if not custom_config:
+                        raise ValueError(f"환경 설정에 '{db_config_key}' 데이터베이스 설정이 없습니다.")
+                else:
+                    # 지원하지 않는 db_config_key인 경우 오류 발생
+                    raise ValueError(f"지원하지 않는 데이터베이스 설정 키: {db_config_key}. 'mysql' 또는 'mysql2'를 사용하세요.")
+                
+                _mysql_client_instances[db_config_key] = MySQLClient(custom_config=custom_config)
     
-    return _mysql_client_instance
+    return _mysql_client_instances[db_config_key]
 
 
 def cleanup_mysql_client():
     """전역 클라이언트 정리"""
-    global _mysql_client_instance
+    global _mysql_client_instances
     
-    if _mysql_client_instance:
-        with _client_lock:
-            if _mysql_client_instance:
+    with _client_lock:
+        for db_config_key, client_instance in list(_mysql_client_instances.items()):
+            if client_instance:
                 try:
                     loop = asyncio.get_event_loop()
-                    loop.create_task(_mysql_client_instance.close())
+                    loop.create_task(client_instance.close())
                 except RuntimeError:
                     # 이벤트 루프가 없는 경우 동기적으로 정리
-                    _mysql_client_instance.pool.close_all()
-                _mysql_client_instance = None
+                    if client_instance.pool:
+                        client_instance.pool.close_all()
+                del _mysql_client_instances[db_config_key]
+        logger.info("모든 MySQL 클라이언트 정리 완료")
 
 
 # 프로그램 종료 시 정리

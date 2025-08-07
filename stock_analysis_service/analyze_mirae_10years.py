@@ -111,7 +111,7 @@ class TechnicalAnalyzer:
     """기술적 분석 클래스"""
     
     def __init__(self):
-        self.mysql_client = MySQLClient()
+        self.mysql_client = MySQLClient("mysql2")
     
     async def initialize_database(self):
         """차트 분석 테이블 생성"""
