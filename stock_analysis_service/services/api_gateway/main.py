@@ -539,7 +539,7 @@ class OptimizedAPIGateway:
             ]
 
             if not healthy_instances:
-                raise HTTPException(status_code=503, detail=f"No healthy instances for {service_name}")
+                raise HTTPException(status_code=503, detail=f"No healthy instances for {service_name}") 
 
             target_instance = self.load_balancer.get_next_instance(service_name, healthy_instances)
             target_url = f"{target_instance}{path}"
@@ -857,6 +857,14 @@ async def chart_execute(request: Request):
     user_id = request.headers.get("X-User-ID") or request.query_params.get("user_id", "1")
     headers = {"X-User-ID": str(user_id)}
     return await gateway.forward_request("chart", "POST", "/execute",
+                                       headers=headers, use_cache=False)
+
+@app.post("/api/chart/execute-historical")
+async def chart_execute_historical(request: Request):
+    # user_id 추출 (Header 또는 Query Param에서)
+    user_id = request.headers.get("X-User-ID") or request.query_params.get("user_id", "1")
+    headers = {"X-User-ID": str(user_id)}
+    return await gateway.forward_request("chart", "POST", "/execute-historical",
                                        headers=headers, use_cache=False)
 
 @app.get("/api/chart/analysis/{stock_code}")

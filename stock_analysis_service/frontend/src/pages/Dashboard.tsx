@@ -40,6 +40,7 @@ const Dashboard = () => {
   const [telegramMessageChart, setTelegramMessageChart] = useState<string | null>(null); // 추가
   const [telegramMessageFlow, setTelegramMessageFlow] = useState<string | null>(null); // 추가
   const [telegramMessageReport, setTelegramMessageReport] = useState<string | null>(null); // 추가
+  const [telegramMessageHistoricalChart, setTelegramMessageHistoricalChart] = useState<string | null>(null); // 추가
   
   // 분석 결과 관리를 위한 상태
   const [analysisResults, setAnalysisResults] = useState<any>({
@@ -47,9 +48,10 @@ const Dashboard = () => {
     chart: [],
     disclosure: [],
     flow: [],
-    report: []
+    report: [],
+    historicalChart: []
   });
-  const [selectedAnalysisTab, setSelectedAnalysisTab] = useState<'news' | 'chart' | 'disclosure' | 'flow' | 'report'>('news');
+  const [selectedAnalysisTab, setSelectedAnalysisTab] = useState<'news' | 'chart' | 'disclosure' | 'flow' | 'report' | 'historicalChart'>('news');
 
   useEffect(() => {
     // 사용자 ID 확인
@@ -81,6 +83,9 @@ const Dashboard = () => {
     if (telegramMessageReport) {
       console.log('Updated telegramMessageReport state in useEffect:', telegramMessageReport);
     }
+    if (telegramMessageHistoricalChart) {
+      console.log('Updated telegramMessageHistoricalChart state in useEffect:', telegramMessageHistoricalChart);
+    }
 
     // 디버깅 목적으로 setTelegramMessage를 window 객체에 노출 (개발 환경에서만 사용 권장)
     (window as any).setTelegramMessageDisclosure = setTelegramMessageDisclosure; // 이름 변경
@@ -88,6 +93,7 @@ const Dashboard = () => {
     (window as any).setTelegramMessageChart = setTelegramMessageChart; // 추가
     (window as any).setTelegramMessageFlow = setTelegramMessageFlow; // 추가
     (window as any).setTelegramMessageReport = setTelegramMessageReport; // 추가
+    (window as any).setTelegramMessageHistoricalChart = setTelegramMessageHistoricalChart; // 추가
 
     // 디버깅 목적으로 telegramMessage 상태 자체를 window 객체에 노출
     (window as any).telegramMessageStateDisclosure = telegramMessageDisclosure; // 이름 변경
@@ -95,8 +101,9 @@ const Dashboard = () => {
     (window as any).telegramMessageStateChart = telegramMessageChart; // 추가
     (window as any).telegramMessageStateFlow = telegramMessageFlow; // 추가
     (window as any).telegramMessageStateReport = telegramMessageReport; // 추가
+    (window as any).telegramMessageStateHistoricalChart = telegramMessageHistoricalChart; // 추가
 
-  }, [navigate, telegramMessageDisclosure, telegramMessageNews, telegramMessageChart, telegramMessageFlow, telegramMessageReport]); // 모든 관련 상태를 의존성 배열에 추가
+  }, [navigate, telegramMessageDisclosure, telegramMessageNews, telegramMessageChart, telegramMessageFlow, telegramMessageReport, telegramMessageHistoricalChart]); // 모든 관련 상태를 의존성 배열에 추가
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // 사용자 설정 조회
   const { data: userConfig, isLoading: isLoadingConfig, error: configError } = useQuery({
@@ -226,27 +233,27 @@ const Dashboard = () => {
   });
   
   const executeChartMutation = useMutation({ 
-    mutationFn: api.executeChartAnalysis,
+    mutationFn: api.executeHistoricalChartAnalysis,
     onSuccess: (data) => {
-      console.log("🔍 차트 분석 결과 전체:", data);
+      console.log("🔍 3개월 과거 차트 분석 결과 전체:", data);
       console.log("🔍 data.data:", data.data);
       
-      // 🔍 종목 정보 콘솔 출력 (요청사항 2)
+      // 🔍 종목 정보 콘솔 출력
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log("📈 차트 분석된 종목 정보:");
+      console.log("📈 3개월 과거 차트 분석된 종목 정보:");
       console.log(`📈 처리된 종목 수: ${data.data?.processed_stocks || 0}개`);
-      console.log(`📊 분석된 차트 수: ${data.data?.total_charts || 0}개`);
+      console.log(`📊 총 조건 수: ${data.data?.total_charts || 0}개`);
       console.log(`⏰ 분석 실행 시간: ${data.data?.execution_time ? new Date(data.data.execution_time).toLocaleString('ko-KR') : '알 수 없음'}`);
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-      // 텔레그램 실제 메시지 그대로 표시 (요청사항 1)
+      // 텔레그램 실제 메시지 그대로 표시
       const actualTelegramMessage = data.data?.telegram_message || "텔레그램 메시지가 없습니다.";
       
-      // 차트 메타데이터를 결과로 표시
+      // 3개월 과거 차트 메타데이터를 결과로 표시
       const chartMetadata = [{
         id: `chart-meta-${Date.now()}`,
-        title: `📈 차트 분석 완료 (${data.data?.total_charts || 0}개 차트 처리)`,
-        summary: `처리된 종목: ${data.data?.processed_stocks || 0}개\n분석 시간: ${data.data?.execution_time ? new Date(data.data.execution_time).toLocaleString('ko-KR') : '알 수 없음'}\n\n📱 텔레그램 알림 내용:\n${actualTelegramMessage}`,
+        title: `📊 차트 분석 완료 (${data.data?.total_charts || 0}개 조건 분석)`,
+        summary: `처리된 종목: ${data.data?.processed_stocks || 0}개\n분석 기간: 3개월\n분석 시간: ${data.data?.execution_time ? new Date(data.data.execution_time).toLocaleString('ko-KR') : '알 수 없음'}\n\n📱 텔레그램 알림 내용:\n${actualTelegramMessage}`,
         timestamp: data.data?.execution_time || new Date().toISOString(),
         impact_score: data.data?.total_charts || 0,
         reasoning: actualTelegramMessage
@@ -257,16 +264,18 @@ const Dashboard = () => {
         chart: chartMetadata
       }));
       setSelectedAnalysisTab('chart');
-      toast.success(`📈 차트 분석이 완료되었습니다! (${data.data?.total_charts || 0}개 차트 처리)`);
+      toast.success(`📊 차트 분석이 완료되었습니다! (${data.data?.total_charts || 0}개 조건 분석)`);
       
       // 텔레그램 메시지는 실제 내용 그대로 설정
       setTelegramMessageChart(actualTelegramMessage);
     },
     onError: (error) => {
-      toast.error("❌ 차트 분석 실행 중 오류가 발생했습니다.");
+      toast.error("차트 분석 실행 중 오류가 발생했습니다.");
       setTelegramMessageChart(null);
     }
   });
+  
+
   
   const executeReportMutation = useMutation({ 
     mutationFn: api.executeReportAnalysis,
@@ -398,7 +407,7 @@ const Dashboard = () => {
     );
   }
 
-  const mainStock = userConfig?.stocks?.[0]?.code || "005930";
+  const mainStock = userConfig?.data?.stocks?.[0]?.code || "005930";
   
   // 종목 변경 핸들러
   const handleStockChange = (stock: { code: string; name: string; sector?: string }) => {
@@ -459,11 +468,11 @@ const Dashboard = () => {
                   </div>
                   <div>
                     <h3 className="text-xl font-semibold text-gray-900">
-                      {userConfig.profile?.username || '사용자'}님
+                      {userConfig?.data?.username || '사용자'}님
                     </h3>
                     <p className="text-gray-600">
-                      관심 종목: {userConfig.stocks?.length || 0}개 |
-                      모델: {userConfig.model_type || 'hyperclova'}
+                      관심 종목: {userConfig?.data?.stocks?.length || 0}개 |
+                      모델: {userConfig?.data?.model_type || 'hyperclova'}
                     </p>
                   </div>
                 </div>
@@ -561,9 +570,11 @@ const Dashboard = () => {
                       disabled={executeChartMutation.isPending}
                       className="flex flex-col items-center py-3 h-auto"
                     >
-                      <span className="text-lg mb-1">📈</span>
+                      <span className="text-lg mb-1">📊</span>
                       <span className="text-xs">차트 즉시 실행해보기</span>
                     </Button>
+                    
+
                     
                     <Button 
                       variant="outline" 
@@ -648,6 +659,7 @@ const Dashboard = () => {
                       telegramMessageChart={telegramMessageChart} // 추가
                       telegramMessageFlow={telegramMessageFlow} // 추가
                       telegramMessageReport={telegramMessageReport} // 추가
+                      telegramMessageHistoricalChart={telegramMessageHistoricalChart} // 추가
                     />
                   </div>
                 </CardContent>
@@ -731,19 +743,20 @@ const DevelopmentFeatures = () => {
 // 분석 결과 컴포넌트
 interface AnalysisResultsProps {
   results: any;
-  selectedTab: 'news' | 'chart' | 'disclosure' | 'flow' | 'report';
-  onTabChange: (tab: 'news' | 'chart' | 'disclosure' | 'flow' | 'report') => void;
+  selectedTab: 'news' | 'chart' | 'disclosure' | 'flow' | 'report' | 'historicalChart';
+  onTabChange: (tab: 'news' | 'chart' | 'disclosure' | 'flow' | 'report' | 'historicalChart') => void;
   isLoading: boolean;
   telegramMessageDisclosure?: string | null; // 기존, 이제 명시적으로 이름 지정
   telegramMessageNews?: string | null; // 새로 추가
   telegramMessageChart?: string | null; // 새로 추가
   telegramMessageFlow?: string | null; // 새로 추가
   telegramMessageReport?: string | null; // 새로 추가
+  telegramMessageHistoricalChart?: string | null; // 새로 추가
 }
 
 const AnalysisResults = ({ results, selectedTab, onTabChange, isLoading,
   telegramMessageDisclosure, telegramMessageNews, telegramMessageChart,
-  telegramMessageFlow, telegramMessageReport
+  telegramMessageFlow, telegramMessageReport, telegramMessageHistoricalChart
 }: AnalysisResultsProps) => {
   
   const tabs = [
@@ -752,6 +765,7 @@ const AnalysisResults = ({ results, selectedTab, onTabChange, isLoading,
     { id: 'disclosure', label: '공시 분석', icon: '📋' },
     { id: 'flow', label: '수급 분석', icon: '💰' },
     { id: 'report', label: '리포트 분석', icon: '📊' },
+    { id: 'historicalChart', label: '차트 분석', icon: '📊' },
   ];
 
   // 탭 변경 핸들러
@@ -1012,6 +1026,37 @@ const AnalysisResults = ({ results, selectedTab, onTabChange, isLoading,
     </div>
   ); // <-- 이 닫는 괄호가 중요합니다.
 
+  const renderHistoricalChartResults = () => (
+    <div className="space-y-4">
+      {results.historicalChart.length > 0 ? (
+        results.historicalChart.map((item: any, index: number) => (
+          <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start mb-2">
+              <h4 className="font-medium text-gray-900">3개월 과거 차트 분석</h4>
+              <Badge variant="outline">조건 수: {item.impact_score}</Badge>
+            </div>
+            <p className="text-gray-600 text-sm mb-2">{item.summary}</p>
+            <p className="text-xs text-gray-500">분석 시간: {item.timestamp}</p>
+          </div>
+        ))
+      ) : (
+        selectedTab === 'historicalChart' && telegramMessageHistoricalChart ? (
+          <Alert className="mt-4">
+              <Bell className="h-4 w-4" />
+              <AlertDescription className="whitespace-pre-line text-sm text-gray-800">
+                <div dangerouslySetInnerHTML={{ __html: telegramMessageHistoricalChart }} />
+              </AlertDescription>
+          </Alert>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <p>차트 분석 결과가 없습니다.</p>
+            <p className="text-sm mt-2">왼쪽의 "차트 즉시 실행해보기" 버튼을 클릭해보세요.</p>
+          </div>
+        )
+      )}
+    </div>
+  );
+
   if (isLoading) { // 이 if 블록은 renderReportResults 함수 외부에 있어야 합니다.
     return (
       <div className="flex items-center justify-center h-full">
@@ -1054,6 +1099,7 @@ const AnalysisResults = ({ results, selectedTab, onTabChange, isLoading,
         {selectedTab === 'disclosure' && renderDisclosureResults()}
         {selectedTab === 'flow' && renderFlowResults()}
         {selectedTab === 'report' && renderReportResults()}
+        {selectedTab === 'historicalChart' && renderHistoricalChartResults()}
       </div>
     </div>
   );

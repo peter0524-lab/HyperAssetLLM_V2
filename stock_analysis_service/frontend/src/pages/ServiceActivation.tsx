@@ -19,7 +19,8 @@ import {
   TrendingUp,
   Zap,
   Server,
-  Cpu
+  Cpu,
+  AlertCircle
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -526,6 +527,15 @@ const ServiceActivation = () => {
               <AlertDescription className="text-indigo-800">
                 <strong>서비스 활성화 안내:</strong> 선택하신 서비스들은 독립적인 포트에서 실행되며, 
                 언제든지 대시보드에서 상태를 확인하고 관리할 수 있습니다.
+              </AlertDescription>
+            </Alert>
+
+            {/* 초기 설정 추천 안내 */}
+            <Alert className="mt-4 border-blue-200 bg-blue-50">
+              <AlertCircle className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-800">
+                <strong>초기 설정 추천:</strong> 처음 사용하시는 경우 모든 서비스를 활성화하는 것을 추천합니다. 
+                추후 언제든지 대시보드에서 비활성화 가능합니다.
               </AlertDescription>
             </Alert>
           </div>

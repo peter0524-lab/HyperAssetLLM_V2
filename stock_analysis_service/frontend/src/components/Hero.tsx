@@ -29,7 +29,9 @@ const Hero = () => {
 
     try {
       // Docker Compose 환경에서는 서비스들이 이미 실행 중이어야 함
+      //정현도테스트
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://hyperasset.site';
+      //const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8005';
       const API_GATEWAY_URL = `${API_BASE_URL}/health`;
       const USER_SERVICE_URL = `${API_BASE_URL}/users/health`;
       
@@ -357,9 +359,9 @@ const Hero = () => {
                   boxSizing: 'border-box',
                   color: '#FFFFFF',
                   cursor: isStartingServices ? 'not-allowed' : 'pointer',
-                  fontSize: '14px',
-                  lineHeight: '20px',
-                  padding: '16px 24px', // Slightly reduced padding for mobile
+                  fontSize: '18px',
+                  lineHeight: '24px',
+                  padding: '20px 32px',
                   border: '1px solid white',
                 }}
               >

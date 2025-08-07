@@ -85,8 +85,8 @@ const ModelSelection = () => {
 
   // 기존 모델 설정 반영
   useEffect(() => {
-    if (userConfig?.model_type) {
-      setSelectedModel(userConfig.model_type);
+    if (userConfig?.data?.model_type) {
+      setSelectedModel(userConfig.data.model_type);
     }
   }, [userConfig]);
 
@@ -313,6 +313,13 @@ const ModelSelection = () => {
                     3
                   </div>
                   <span className="text-primary font-medium">모델 설정</span>
+                </div>
+                <ArrowRight className="h-4 w-4 text-gray-400" />
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center text-sm font-bold">
+                    4
+                  </div>
+                  <span className="text-gray-600">서비스 활성화</span>
                 </div>
               </div>
             </div>

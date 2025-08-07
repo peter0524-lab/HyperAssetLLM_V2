@@ -1687,18 +1687,309 @@ class ChartAnalysisService:
             self.logger.error(f"❌ 사용자 AI 모델 조회 실패: {user_id} - {e}")
             return "hyperclova"
 
-    def clear_user_cache(self, user_id: Optional[str] = None):
-        """사용자 설정 캐시 클리어"""
+    async def clear_user_cache(self, user_id: Optional[str] = None):
+        """사용자 캐시 정리"""
+        try:
         if user_id:
-            self.personalized_configs.pop(user_id, None)
-            if self.user_config_loader:
-                self.user_config_loader.clear_cache(user_id)
-            self.logger.debug(f"🧹 사용자 설정 캐시 클리어: {user_id}")
+                # 특정 사용자 캐시만 정리
+                if user_id in self.personalized_configs:
+                    del self.personalized_configs[user_id]
+                    self.logger.info(f"사용자 캐시 정리: {user_id}")
         else:
+                # 모든 사용자 캐시 정리
             self.personalized_configs.clear()
-            if self.user_config_loader:
-                self.user_config_loader.clear_cache()
-            self.logger.debug("🧹 모든 사용자 설정 캐시 클리어")
+                self.logger.info("모든 사용자 캐시 정리 완료")
+        except Exception as e:
+            self.logger.error(f"사용자 캐시 정리 실패: {e}")
+
+    # ===== 새로운 3개월 과거 분석 함수들 =====
+    
+    async def analyze_historical_conditions(self, stock_code: str, months: int = 3) -> Dict:
+        """3개월 과거 데이터로 모든 조건 만족 날짜 분석"""
+        try:
+            self.logger.info(f"🔍 {stock_code} 3개월 과거 조건 분석 시작")
+            
+            # 3개월 전 날짜 계산
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=months * 30)  # 대략 3개월
+            
+            # 확장된 API로 3개월 데이터 조회
+            start_date_str = start_date.strftime('%Y%m%d')
+            end_date_str = end_date.strftime('%Y%m%d')
+            
+            self.logger.info(f"📊 데이터 조회 기간: {start_date_str} ~ {end_date_str}")
+            
+            # 3개월 데이터 조회
+            historical_data = await self.kis_client.get_daily_chart_extended(
+                stock_code, 
+                start_date=start_date_str,
+                end_date=end_date_str,
+                period=1000
+            )
+            
+            if not historical_data:
+                self.logger.warning(f"3개월 과거 데이터 없음: {stock_code}")
+                return {"success": False, "error": "데이터 없음"}
+            
+            # DataFrame으로 변환
+            df = pd.DataFrame(historical_data)
+            df['date'] = pd.to_datetime(df['date'])
+            df = df.sort_values('date')  # 날짜순 정렬
+            
+            self.logger.info(f"📊 3개월 데이터 로드 완료: {len(df)}일")
+            
+            # 기술적 지표 계산
+            df = await self.calculate_technical_indicators(df)
+            
+            # 각 날짜별로 조건 체크
+            condition_results = []
+            
+            for i in range(len(df)):
+                if i < 26:  # MACD 계산을 위해 최소 26일 필요
+                    continue
+                
+                # 현재 날짜의 데이터
+                current_row = df.iloc[i]
+                current_date = current_row['date'].strftime('%Y-%m-%d')
+                
+                # 해당 날짜까지의 데이터로 조건 체크
+                check_df = df.iloc[:i+1].copy()
+                
+                # 각 조건 체크
+                conditions = {}
+                for name, check_func in [
+                    ("golden_cross", self.check_golden_cross),
+                    ("dead_cross", self.check_dead_cross),
+                    ("bollinger_touch", self.check_bollinger_touch),
+                    ("ma20_touch", self.check_ma20_touch),
+                    ("rsi_condition", self.check_rsi_conditions),
+                    ("volume_surge", self.check_volume_surge),
+                    ("macd_golden_cross", self.check_macd_golden_cross),
+                    ("support_resistance_break", self.check_support_resistance_break)
+                ]:
+                    try:
+                        result = await check_func(check_df)
+                        conditions[name] = result if result is not None else {"condition": False}
+                    except Exception as e:
+                        self.logger.error(f"{name} 체크 실패: {e}")
+                        conditions[name] = {"condition": False}
+                
+                # 조건 만족 여부 확인
+                satisfied_conditions = []
+                for name, condition in conditions.items():
+                    if condition.get("condition", False):
+                        satisfied_conditions.append({
+                            "name": name,
+                            "details": condition.get("details", "조건 만족")
+                        })
+                
+                # 조건 만족한 날짜만 저장
+                if satisfied_conditions:
+                    condition_results.append({
+                        "date": current_date,
+                        "close_price": float(current_row['close']),
+                        "volume": int(current_row['volume']),
+                        "satisfied_conditions": satisfied_conditions
+                    })
+            
+            self.logger.info(f"✅ 3개월 과거 분석 완료: {len(condition_results)}개 조건 만족 날짜")
+            
+            return {
+                "success": True,
+                "stock_code": stock_code,
+                "analysis_period": f"{months}개월",
+                "total_days": len(df),
+                "condition_dates": condition_results,
+                "total_conditions": len(condition_results)
+            }
+            
+        except Exception as e:
+            self.logger.error(f"❌ 3개월 과거 분석 실패: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def get_condition_statistics(self, stock_code: str, months: int = 3) -> Dict:
+        """조건별 통계 및 5일 후 수익률 분석"""
+        try:
+            # 3개월 과거 분석 실행
+            analysis_result = await self.analyze_historical_conditions(stock_code, months)
+            
+            if not analysis_result.get("success"):
+                return analysis_result
+            
+            condition_dates = analysis_result["condition_dates"]
+            
+            # 조건별 통계 계산
+            condition_stats = {}
+            for condition_name in ["golden_cross", "dead_cross", "bollinger_touch", "ma20_touch", 
+                                 "rsi_condition", "volume_surge", "macd_golden_cross", "support_resistance_break"]:
+                
+                # 해당 조건을 만족한 날짜들 찾기
+                condition_dates = []
+                for date_data in condition_dates:
+                    for condition in date_data["satisfied_conditions"]:
+                        if condition["name"] == condition_name:
+                            condition_dates.append(date_data["date"])
+                            break
+                
+                # 5일 후 수익률 계산
+                total_return = 0
+                valid_cases = 0
+                
+                for condition_date in condition_dates:
+                    # 5일 후 주가 조회
+                    historical_prices = await self.get_historical_prices(
+                        stock_code, condition_date, days=5
+                    )
+                    
+                    if historical_prices and len(historical_prices) >= 2:
+                        # 첫날과 마지막날 가격으로 수익률 계산
+                        first_price = historical_prices[0]["close"]
+                        last_price = historical_prices[-1]["close"]
+                        
+                        if first_price > 0:
+                            return_rate = ((last_price - first_price) / first_price) * 100
+                            total_return += return_rate
+                            valid_cases += 1
+                
+                # 평균 수익률 계산
+                avg_return = total_return / valid_cases if valid_cases > 0 else 0
+                
+                condition_stats[condition_name] = {
+                    "count": len(condition_dates),
+                    "dates": condition_dates,
+                    "avg_return_5days": round(avg_return, 2),
+                    "valid_cases": valid_cases
+                }
+            
+            return {
+                "success": True,
+                "stock_code": stock_code,
+                "analysis_period": f"{months}개월",
+                "total_condition_dates": len(condition_dates),
+                "condition_statistics": condition_stats
+            }
+            
+        except Exception as e:
+            self.logger.error(f"❌ 조건 통계 분석 실패: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def execute_historical_analysis(self) -> Dict:
+        """3개월 과거 데이터 기반 차트 분석 실행 (새로운 메인 함수)"""
+        try:
+            self.logger.info("🚀 3개월 과거 데이터 기반 차트 분석 시작")
+            
+            # 사용자 설정된 종목들 가져오기
+            try:
+                stock_items = self.stocks_config.items()
+                if not stock_items:
+                    raise ValueError("stocks_config가 비어있음")
+            except Exception as e:
+                self.logger.warning(f"⚠️ 종목 설정 불러오기 실패: {e} → 기본 종목으로 대체")
+                stock_items = [("006800", {})]
+            
+            all_results = {}
+            total_processed = 0
+            
+            for stock_code, stock_info in stock_items:
+                if not stock_info.get("enabled", True):
+                    continue
+                
+                try:
+                    self.logger.info(f"📊 {stock_code} 3개월 과거 분석 시작")
+                    
+                    # 조건별 통계 분석
+                    stats_result = await self.get_condition_statistics(stock_code, months=3)
+                    
+                    if stats_result.get("success"):
+                        all_results[stock_code] = stats_result
+                        total_processed += 1
+                        self.logger.info(f"✅ {stock_code} 분석 완료")
+                    else:
+                        self.logger.error(f"❌ {stock_code} 분석 실패: {stats_result.get('error')}")
+                        
+                except Exception as e:
+                    self.logger.error(f"❌ {stock_code} 처리 중 오류: {e}")
+                    continue
+            
+            # 전체 결과 요약
+            summary = {
+                "success": True,
+                "processed_stocks": total_processed,
+                "total_charts": sum(len(result["condition_statistics"]) for result in all_results.values()),
+                "execution_time": datetime.now().isoformat(),
+                "detailed_results": all_results
+            }
+            
+            # 텔레그램 메시지 생성
+            telegram_message = self._format_historical_analysis_message(summary)
+            summary["telegram_message"] = telegram_message
+            
+            self.logger.info(f"✅ 3개월 과거 분석 완료: {total_processed}개 종목")
+            return summary
+            
+        except Exception as e:
+            self.logger.error(f"❌ 3개월 과거 분석 실행 실패: {e}")
+            return {"success": False, "error": str(e)}
+
+    def _format_historical_analysis_message(self, summary: Dict) -> str:
+        """3개월 과거 분석 결과를 텔레그램 메시지로 포맷팅"""
+        try:
+            message = "📊 3개월 과거 차트 분석 결과\n"
+            message += "━━━━━━━━━━━━━━━━━━━\n\n"
+            
+            processed_stocks = summary.get("processed_stocks", 0)
+            total_charts = summary.get("total_charts", 0)
+            
+            message += f"📈 분석 종목: {processed_stocks}개\n"
+            message += f"📊 총 조건 수: {total_charts}개\n\n"
+            
+            detailed_results = summary.get("detailed_results", {})
+            
+            for stock_code, result in detailed_results.items():
+                stock_name = result.get("stock_name", stock_code)
+                condition_stats = result.get("condition_statistics", {})
+                
+                message += f"🎯 <b>{stock_name}({stock_code})</b>\n"
+                
+                # 조건별 통계 표시
+                for condition_name, stats in condition_stats.items():
+                    count = stats.get("count", 0)
+                    avg_return = stats.get("avg_return_5days", 0)
+                    
+                    if count > 0:
+                        # 조건명 한글화
+                        condition_names = {
+                            "golden_cross": "골든크로스",
+                            "dead_cross": "데드크로스", 
+                            "bollinger_touch": "볼린저밴드",
+                            "ma20_touch": "20일선 터치",
+                            "rsi_condition": "RSI 신호",
+                            "volume_surge": "거래량 급증",
+                            "macd_golden_cross": "MACD 골든크로스",
+                            "support_resistance_break": "지지/저항 돌파"
+                        }
+                        
+                        kor_name = condition_names.get(condition_name, condition_name)
+                        
+                        # 수익률에 따른 이모지
+                        if avg_return > 5:
+                            emoji = "🔥"
+                        elif avg_return > 0:
+                            emoji = "📈"
+                        elif avg_return > -5:
+                            emoji = "📉"
+                        else:
+                            emoji = "💀"
+                        
+                        message += f"  {emoji} {kor_name}: {count}회 (평균 +{avg_return:.1f}%)\n"
+                
+                message += "\n"
+            
+            return message
+            
+        except Exception as e:
+            self.logger.error(f"텔레그램 메시지 포맷팅 실패: {e}")
+            return "�� 3개월 과거 차트 분석 완료"
 
 
 # ==================== 싱글톤 서비스 인스턴스 ====================
@@ -1890,7 +2181,7 @@ def should_execute_now() -> Tuple[bool, str]:
         return True, f"{interval_name} - 마지막 실행: {last_execution_time.strftime('%H:%M')}"
     else:
         remaining = int(required_interval - time_diff)
-        return False, f"{interval_name} - {remaining}초 후 실행 가능}"
+        return False, f"{interval_name} - {remaining}초 후 실행 가능"
 
 async def execute_chart_analysis() -> Dict:
     """차트 분석 실행 (오케스트레이터 호출용)"""
@@ -1995,6 +2286,27 @@ async def check_schedule():
             "executed": False,
             "message": f"스케줄 체크 오류: {str(e)}"
         }
+
+@app.post("/execute-historical")
+async def execute_historical_analysis_endpoint(request: Request):
+    """3개월 과거 데이터 기반 차트 분석 실행 - 새로운 엔드포인트"""
+    try:
+        # Header에서 user_id 추출 (문자열로 처리)
+        user_id = request.headers.get("X-User-ID", "1")
+        
+        # 서비스 인스턴스의 user_id 동적 업데이트
+        chart_service = get_chart_service()
+        if chart_service.current_user_id != user_id:
+            await chart_service.set_user_id(user_id)
+            logger.info(f"🔄 사용자 컨텍스트 변경: {user_id}")
+        
+        # 3개월 과거 분석 실행
+        result = await chart_service.execute_historical_analysis()
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ 3개월 과거 분석 실행 실패: {e}")
+        return {"success": False, "error": str(e)}
 
 async def main():
     """메인 실행 함수 (분석 서비스)"""

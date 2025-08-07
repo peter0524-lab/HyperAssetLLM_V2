@@ -56,8 +56,13 @@ const Profile = () => {
 
   // 사용자 설정 데이터가 로드되면 폼에 반영
   useEffect(() => {
-    if (userConfig?.profile) {
-      setFormData(userConfig.profile);
+    if (userConfig?.data) {
+      setFormData({
+        username: userConfig.data.username,
+        phone_number: userConfig.data.phone_number,
+        news_similarity_threshold: userConfig.data.news_similarity_threshold,
+        news_impact_threshold: userConfig.data.news_impact_threshold,
+      });
     }
   }, [userConfig]);
 
@@ -333,6 +338,13 @@ const Profile = () => {
                     3
                   </div>
                   <span className="text-gray-600">모델 설정</span>
+                </div>
+                <ArrowRight className="h-4 w-4 text-gray-400" />
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center text-sm font-bold">
+                    4
+                  </div>
+                  <span className="text-gray-600">서비스 활성화</span>
                 </div>
               </div>
             </div>

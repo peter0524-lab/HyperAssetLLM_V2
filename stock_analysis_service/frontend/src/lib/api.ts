@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 // 🔥 VM 백엔드 연결 설정 (HTTPS + NGINX 리버스 프록시)
+// 정현도테스트
 const VM_BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://hyperasset.site';
+//const VM_BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8005';
 const API_GATEWAY_URL = `${VM_BACKEND_URL}`; // NGINX 리버스 프록시 사용
 const USER_SERVICE_URL = `${VM_BACKEND_URL}`; // NGINX 리버스 프록시 사용
 
@@ -59,9 +61,19 @@ export interface StockInfo {
 
 export interface UserConfig {
   user_id: string;
-  profile: UserProfile;
+  username: string;
+  phone_number: string;
+  news_similarity_threshold: number;
+  news_impact_threshold: number;
   stocks: StockInfo[];
   model_type: string;
+  active_services?: any;
+}
+
+export interface ApiResponse {
+  success: boolean;
+  message: string;
+  data: UserConfig;
 }
 
 export interface AnalysisResult {
@@ -112,7 +124,7 @@ export const api = {
     }
   },
 
-  async getUserConfig(userId: string): Promise<UserConfig> {
+  async getUserConfig(userId: string): Promise<ApiResponse> {
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.log("⚙️ 사용자 설정 조회 API 호출 시작 (직접 호출)");
     console.log("👤 사용자 ID:", userId);
@@ -335,6 +347,19 @@ export const api = {
       console.error('차트 분석 에러:', error);
       if (error.response?.status === 500) {
         return { status: 'completed', message: '차트 분석 완료 (데모)', timestamp: new Date().toISOString() };
+      }
+      throw error;
+    }
+  },
+
+  async executeHistoricalChartAnalysis(): Promise<AnalysisResult> {
+    try {
+      const response = await gatewayClient.post('/api/chart/execute-historical');
+      return response.data;
+    } catch (error: any) {
+      console.error('3개월 과거 차트 분석 에러:', error);
+      if (error.response?.status === 500) {
+        return { status: 'completed', message: '3개월 과거 차트 분석 완료 (데모)', timestamp: new Date().toISOString() };
       }
       throw error;
     }
